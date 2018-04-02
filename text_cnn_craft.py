@@ -21,10 +21,11 @@ class TextCNN(object):
         # Embedding layer
         with tf.name_scope("Embedding"):
             if embeddingW is not None:
-                self.W = tf.Variable(embeddingW, name="W", trainable=True)
+                self.W = tf.cast(tf.Variable(embeddingW, name="W"), tf.float32)
             else:
                 self.W = tf.Variable(tf.random_uniform([vocab_size, embedding_size], -1.0, 1.0),
                     trainable=True, name="W")
+                
 
 
             self.questionEmbedding1 = tf.nn.embedding_lookup(self.W, self.questions)

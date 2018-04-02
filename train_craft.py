@@ -20,7 +20,7 @@ batch_size = 64
 num_epochs = 5
 question_length = 50
 answer_length = 64
-embedding_size = 128
+embedding_size = 256
 num_filters = 128
 filter_sizes = (5, 6, 7) 
 dev_sample_percentage = 0.1
@@ -64,9 +64,9 @@ def to_vector(senquence):
             index = len(dic)
             dic[word] = index
             if word not in model.wv.vocab:
-                embeddingW.append(np.random.rand(1, embedding_size))
+                embeddingW.append(np.random.rand(embedding_size))
             else:
-                embeddingW.append(model[word])
+                embeddingW.append(np.array(model[word]))
             ans_list = ans_list + (index, )
 
     return np.array(ans_list)
@@ -149,8 +149,8 @@ def train():
                         embedding_size=embedding_size,
                         batch_size=batch_size,
                         num_filters=num_filters,
-                        filter_sizes=(4, 4, 5)
-                        )
+                        filter_sizes=(4, 4, 5),
+                        embeddingW=np.array(embeddingW))
 
             # Define Training procedure
             global_step = tf.Variable(0, name="global_step", trainable=False)
