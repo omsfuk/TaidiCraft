@@ -10,7 +10,7 @@ class TextCNN(object):
     """
     def __init__(
       self, vocab_size, question_num, answer_num, question_length, answer_length,
-      embedding_size, batch_size, num_filters, filter_sizes):
+      embedding_size, batch_size, num_filters, filter_sizes, embeddingW=None):
         # Placeholders for input, output and dropout
 
         self.questions = tf.placeholder(tf.int32, [None, question_length], name="questions")
@@ -20,8 +20,12 @@ class TextCNN(object):
         # print('embeddingW',type(embeddingW))
         # Embedding layer
         with tf.name_scope("Embedding"):
-            self.W = tf.Variable(tf.random_uniform([vocab_size, embedding_size], -1.0, 1.0),
-                trainable=True, name="W")
+            if embeddingW is not None:
+                self.W = tf.Variable(embeddingW, name="W", trainable=True)
+            else:
+                self.W = tf.Variable(tf.random_uniform([vocab_size, embedding_size], -1.0, 1.0),
+                    trainable=True, name="W")
+
 
             self.questionEmbedding1 = tf.nn.embedding_lookup(self.W, self.questions)
             self.questionEmbedding = tf.reshape(self.questionEmbedding1, [-1, question_length, embedding_size])

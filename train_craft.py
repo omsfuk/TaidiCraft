@@ -8,11 +8,11 @@ import re
 import time
 import os
 import datetime
+import gensim
 from text_cnn_craft import TextCNN
 
 input = open("train_data_sample.json",encoding='utf-8')
 pattern = re.compile(r'[\u4e00-\u9fa5_a-zA-Z0-9１２３４５６７８９０]')
-model = gensim.models.Word2Vec.load('corpus.model')
 # dic = pickle.load(open("word.index", 'rb'))
 # dic['default_word'] = 0
 dic = {}
@@ -24,8 +24,9 @@ embedding_size = 128
 num_filters = 128
 filter_sizes = (5, 6, 7) 
 dev_sample_percentage = 0.1
+embeddingW = []
 
-model = gensim.models.Word2Vec.load('corpus.model')
+model = gensim.models.Word2Vec.load('npy/word2vec_wx')
 
 tf.flags.DEFINE_integer("num_filters", 128, "Number of filters per filter size (default: 128)")
 tf.flags.DEFINE_integer("num_checkpoints", 5, "Number of checkpoints to store (default: 5)")
@@ -62,8 +63,11 @@ def to_vector(senquence):
         else:
             index = len(dic)
             dic[word] = index
+            if word not in model.wv.vocab:
+                embeddingW.append(np.random.rand(1, embedding_size))
+            else:
+                embeddingW.append(model[word])
             ans_list = ans_list + (index, )
-
 
     return np.array(ans_list)
 
@@ -88,19 +92,18 @@ def preprocess():
     ans_index = 0
     line_limit = 0
     for qa in text_data:
-        if line_limit > 16000:
+        if line_limit > 6400:
             break
         question_seg = jieba.lcut(filter_punt(qa['question']), cut_all=False)
         question_seg = fill_list(question_seg, "default_word", question_length)
         answers = qa['passages']
         for ans in answers:
             line_limit = line_limit + 1
-            if line_limit > 16000:
+            if line_limit > 6400:
                 break
             ans_index = ans_index + 1
             print("try to process " + str(ans_index) + "question/answer")
             answer_seg = jieba.lcut(filter_punt(ans['content']), cut_all=False)
-            model.train(answer_seg)
             if len(answer_seg) <= answer_length:
                 answer_seg = fill_list(answer_seg, "default_word", answer_length)
                 # line_vector = np.hstack((np.array((ans['label'] * 1.0, )), to_vector(question_seg + answer_seg)))
@@ -116,6 +119,7 @@ def preprocess():
 
 def train():
     data = np.array(preprocess())
+    print(len(embeddingW))
 
     # Randomly shuffle data
     np.random.seed(10)
@@ -137,7 +141,7 @@ def train():
           log_device_placement=FLAGS.log_device_placement)
         sess = tf.Session(config=session_conf)
         with sess.as_default():
-            cnn = TextCNN(vocab_size=len(dic),
+            cnn = TextCNN(vocab_size=len(model.wv.vocab),
                         question_num=64,
                         answer_num=64,
                         question_length=question_length,
@@ -145,7 +149,8 @@ def train():
                         embedding_size=embedding_size,
                         batch_size=batch_size,
                         num_filters=num_filters,
-                        filter_sizes=(3, 4, 5))
+                        filter_sizes=(4, 4, 5)
+                        )
 
             # Define Training procedure
             global_step = tf.Variable(0, name="global_step", trainable=False)

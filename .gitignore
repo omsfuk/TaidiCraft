@@ -1,3 +1,6 @@
 train_data_sample.json
 word.index
+npy/
+__pycache__/
+runs/
 
