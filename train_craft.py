@@ -14,8 +14,7 @@ from text_cnn_craft import TextCNN
 input = open("train_data_sample.json",encoding='utf-8')
 pattern = re.compile(r'[\u4e00-\u9fa5_a-zA-Z0-9１２３４５６７８９０]')
 # dic = pickle.load(open("word.index", 'rb'))
-# dic['default_word'] = 0
-dic = {}
+dic = {'default_word': 0}
 batch_size = 64
 num_epochs = 5
 question_length = 50
@@ -25,6 +24,8 @@ num_filters = 128
 filter_sizes = (5, 6, 7) 
 dev_sample_percentage = 0.1
 embeddingW = []
+embeddingW.append(np.zeros(shape=(embedding_size)))
+sample_limit = 6400
 
 model = gensim.models.Word2Vec.load('npy/word2vec_wx')
 
@@ -35,25 +36,21 @@ tf.flags.DEFINE_boolean("allow_soft_placement", True, "Allow device soft device 
 tf.flags.DEFINE_boolean("log_device_placement", False, "Log placement of ops on devices")
 tf.flags.DEFINE_integer("checkpoint_every", 100, "Save model after this many steps (default: 100)")
 tf.flags.DEFINE_integer("evaluate_every", 10, "Evaluate model on dev set after this many steps (default: 100)")
-def batch_iter(data, batch_size, num_epochs, shuffle=True):
-    """
-    Generates a batch iterator for a dataset.
-    """
-    print("valid data %d" % len(data))
-    data_size = len(data)
-    num_batches_per_epoch = int((len(data)-1)/batch_size) + 1
-    for epoch in range(num_epochs):
-        print("epoch %d" % epoch)
-        # Shuffle the data at each epoch
-        if shuffle:
-            shuffle_indices = np.random.permutation(np.arange(data_size))
-            shuffled_data = data[shuffle_indices]
-        else:
-            shuffled_data = data
-        for batch_num in range(num_batches_per_epoch):
-            start_index = batch_num * batch_size
-            end_index = min((batch_num + 1) * batch_size, data_size)
-            yield shuffled_data[start_index:end_index]
+
+# 过滤特殊符号
+punct = set(u'''#ㄍ <>/\\[]:!)］∫,.:;?]}¢'"、。〉》」』】〕〗〞︰︱︳﹐､﹒
+        ﹔﹕﹖﹗﹚﹜﹞！），．：；？｜｝︴︶︸︺︼︾﹀﹂﹄﹏､～￠
+        々‖•·ˇˉ―--′’”([{£¥'"‵〈《「『【〔〖（［｛￡￥〝︵︷︹︻
+        ︽︿﹁﹃﹙﹛﹝（｛“‘-—_…''')
+# 对str/unicode
+# filter_punt = lambda s: u''.join(filter(lambda x: x not in punct, s))
+filter_punt = lambda s: u''.join(filter(lambda x: True if pattern.match(x) else False , s))
+
+def fill_list(elements, value, size):
+    if len(elements) < size:
+        for _ in range(0, size - len(elements)):
+            elements.append(value)
+    return elements
 
 def to_vector(senquence):
     ans_list = ()
@@ -71,68 +68,57 @@ def to_vector(senquence):
 
     return np.array(ans_list)
 
-# 过滤特殊符号
-punct = set(u'''#ㄍ <>/\\[]:!)］∫,.:;?]}¢'"、。〉》」』】〕〗〞︰︱︳﹐､﹒
-        ﹔﹕﹖﹗﹚﹜﹞！），．：；？｜｝︴︶︸︺︼︾﹀﹂﹄﹏､～￠
-        々‖•·ˇˉ―--′’”([{£¥'"‵〈《「『【〔〖（［｛￡￥〝︵︷︹︻
-        ︽︿﹁﹃﹙﹛﹝（｛“‘-—_…''')
-# 对str/unicode
-# filter_punt = lambda s: u''.join(filter(lambda x: x not in punct, s))
-filter_punt = lambda s: u''.join(filter(lambda x: True if pattern.match(x) else False , s))
 
-def fill_list(elements, value, size):
-    if len(elements) < size:
-        for _ in range(0, size - len(elements)):
-            elements.append(value)
-    return elements
-
-def preprocess():
-    data = []
-    text_data = json.loads(input.read())
-    ans_index = 0
+def batch_iter(batch_size, epoch_num):
+    res = []
+    with open('train_data_sample.json', 'r') as f:
+        json_obj = json.load(f)
     line_limit = 0
-    for qa in text_data:
-        if line_limit > 6400:
-            break
-        question_seg = jieba.lcut(filter_punt(qa['question']), cut_all=False)
-        question_seg = fill_list(question_seg, "default_word", question_length)
-        answers = qa['passages']
-        for ans in answers:
-            line_limit = line_limit + 1
-            if line_limit > 6400:
+    ans_index = 0
+    for epoch_count in range(0, epoch_num):
+        print("[%s] epoch %d" % (datetime.datetime.now().strftime('%b-%d-%y %H:%M:%S'), epoch_count + 1))
+        for qa in json_obj:
+            if line_limit > sample_limit:
                 break
-            ans_index = ans_index + 1
-            print("try to process " + str(ans_index) + "question/answer")
-            answer_seg = jieba.lcut(filter_punt(ans['content']), cut_all=False)
-            if len(answer_seg) <= answer_length:
+            question_seg = jieba.lcut(filter_punt(qa['question']), cut_all=False) # 问题 词序列
+
+            # 问题长度过滤
+            if len(question_seg) > question_length:
+                continue
+
+            question_seg = fill_list(question_seg, "default_word", question_length)
+            answers = qa['passages'] 
+            for ans in answers:
+                # 样本数量限制
+                line_limit = line_limit + 1
+                if line_limit > sample_limit:
+                    break
+
+                ans_index = ans_index + 1
+                if ans_index % 100 == 0:
+                    print("processing %d question and answer" % ans_index)
+
+                answer_seg = jieba.lcut(filter_punt(ans['content']), cut_all=False) # 答案 词序列
+                # 答案长度过滤
+                if len(answer_seg) > answer_length:
+                    continue
+
                 answer_seg = fill_list(answer_seg, "default_word", answer_length)
-                # line_vector = np.hstack((np.array((ans['label'] * 1.0, )), to_vector(question_seg + answer_seg)))
-                line_vector = (np.array((ans['label'] * 1.0, )), to_vector(question_seg), to_vector(answer_seg))
-                data.append(line_vector)
-
-    input.close()
-    return data
-
-
-
-
+                line_vector = (np.array((ans['label'] * 1.0, )),
+                        to_vector(question_seg),
+                        to_vector(answer_seg)) # 一行向量 (label, question, answer)
+                res.append(line_vector)
+                if len(res) == batch_size:
+                    res = np.array(res)
+                    shuffle_indices = np.random.permutation(np.arange(batch_size))
+                    shuffled_data = res[shuffle_indices]
+                    yield shuffled_data
+                    res = []
 
 def train():
-    data = np.array(preprocess())
-    print(len(embeddingW))
 
-    # Randomly shuffle data
-    np.random.seed(10)
-
-    shuffle_indices = np.random.permutation(np.arange(len((data))))
-    data_shuffled = data[shuffle_indices]
-
-    # Split train/test set
-    # TODO: This is very crude, should use cross-validation
-    dev_sample_index = -1 * int(dev_sample_percentage * float(len(data)))
-    data_train, data_dev = data_shuffled[:dev_sample_index], data_shuffled[dev_sample_index:]
-
-
+    for _ in batch_iter(batch_size, 1):
+        continue
 
     FLAGS = tf.flags.FLAGS
     with tf.Graph().as_default():
@@ -141,9 +127,7 @@ def train():
           log_device_placement=FLAGS.log_device_placement)
         sess = tf.Session(config=session_conf)
         with sess.as_default():
-            cnn = TextCNN(vocab_size=len(model.wv.vocab),
-                        question_num=64,
-                        answer_num=64,
+            cnn = TextCNN(vocab_size=len(dic),
                         question_length=question_length,
                         answer_length=answer_length,
                         embedding_size=embedding_size,
@@ -182,20 +166,12 @@ def train():
             train_summary_dir = os.path.join(out_dir, "summaries", "train")
             train_summary_writer = tf.summary.FileWriter(train_summary_dir, sess.graph)
 
-            # Dev summaries
-            dev_summary_op = tf.summary.merge([loss_summary, acc_summary])
-            dev_summary_dir = os.path.join(out_dir, "summaries", "dev")
-            dev_summary_writer = tf.summary.FileWriter(dev_summary_dir, sess.graph)
-
             # Checkpoint directory. Tensorflow assumes this directory already exists so we need to create it
             checkpoint_dir = os.path.abspath(os.path.join(out_dir, "checkpoints"))
             checkpoint_prefix = os.path.join(checkpoint_dir, "model")
             if not os.path.exists(checkpoint_dir):
                 os.makedirs(checkpoint_dir)
             saver = tf.train.Saver(tf.global_variables(), max_to_keep=FLAGS.num_checkpoints)
-
-            # Write vocabulary
-            # vocab_processor.save(os.path.join(out_dir, "vocab"))
 
             # Initialize all variables
             sess.run(tf.global_variables_initializer())
@@ -214,23 +190,8 @@ def train():
                 print("{}: step {}, loss {:g}, acc {:g}".format(time_str, step, loss, accuracy))
                 train_summary_writer.add_summary(summaries, step)
 
-            def dev_step(x_batch, y_batch, labels, writer=None):
-                # Evaluates model on a dev set
-                feed_dict = {
-                  cnn.questions: x_batch,
-                  cnn.answers: y_batch,
-                  cnn.labels: labels,
-                }
-                step, summaries, loss, accuracy = sess.run(
-                    [global_step, dev_summary_op, cnn.loss, cnn.accuracy],
-                    feed_dict)
-                time_str = datetime.datetime.now().isoformat()
-                print("{}: step {}, loss {:g}, acc {:g}".format(time_str, step, loss, accuracy))
-                if writer:
-                    writer.add_summary(summaries, step)
-
             # Generate batches
-            batches = batch_iter(data_train[0:int(len(data_train) / batch_size) * batch_size], batch_size, num_epochs)
+            batches = batch_iter(batch_size, num_epochs)
             # Training loop. For each batch...
             for batch in batches:
                 labels = []
@@ -243,26 +204,6 @@ def train():
                     answers.append(answer)
                 train_step(questions=questions, answers=answers, labels=labels)
                 current_step = tf.train.global_step(sess, global_step)
-                """
-                if current_step % FLAGS.evaluate_every == 0:
-                    print("\nEvaluation:")
-                    labels = []
-                    questions = []
-                    answers = []
-                    data_dev = data_dev[0:int(len(data_dev) / batch_size) * batch_size]
-                    for item in data_dev:
-                        label, question, answer = item
-                        labels.append(label)
-                        questions.append(question)
-                        answers.append(answer)
-
-                    dev_step(questions, answers, labels, writer=dev_summary_writer)
-                    print("")
-                if current_step % FLAGS.checkpoint_every == 0:
-                    path = saver.save(sess, checkpoint_prefix, global_step=current_step)
-                    print("Saved model checkpoint to {}\n".format(path))
-                """
-
 train()
 dic_out = open("word.index", "wb")
 pickle.dump(dic, dic_out)

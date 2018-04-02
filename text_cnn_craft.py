@@ -9,7 +9,7 @@ class TextCNN(object):
     Uses an embedding layer, followed by a convolutional, max-pooling and softmax layer.
     """
     def __init__(
-      self, vocab_size, question_num, answer_num, question_length, answer_length,
+      self, vocab_size, question_length, answer_length,
       embedding_size, batch_size, num_filters, filter_sizes, embeddingW=None):
         # Placeholders for input, output and dropout
 
@@ -96,8 +96,8 @@ class TextCNN(object):
         self.answer_pool_flat = tf.reshape(self.answer_pool, [-1, num_filters_total])
 
         with tf.name_scope("full-connected"):
-            W = tf.Variable(tf.truncated_normal([num_filters_total, 64], stddev=0.1), name="W")
-            b = tf.Variable(tf.constant(0.1, shape=[64]), name="b")
+            W = tf.Variable(tf.truncated_normal([num_filters_total, batch_size], stddev=0.1), name="W")
+            b = tf.Variable(tf.constant(0.1, shape=[batch_size]), name="b")
             self.question_outputs = tf.matmul(self.question_pool_flat, W) + b
             self.answer_outputs = tf.matmul(self.answer_pool_flat, W) + b
         with tf.name_scope("loss"):
