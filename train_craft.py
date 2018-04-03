@@ -14,6 +14,8 @@ from text_cnn_craft import TextCNN
 input = open("train_data_sample.json",encoding='utf-8')
 pattern = re.compile(r'[\u4e00-\u9fa5_a-zA-Z0-9１２３４５６７８９０]')
 # dic = pickle.load(open("word.index", 'rb'))
+question_outputs=[]
+answer_outputs=[]
 dic = {'default_word': 0}
 batch_size = 64
 num_epochs = 5
@@ -25,7 +27,7 @@ filter_sizes = (5, 6, 7)
 dev_sample_percentage = 0.1
 embeddingW = []
 embeddingW.append(np.zeros(shape=(embedding_size)))
-sample_limit = 6400
+sample_limit = 640
 
 model = gensim.models.Word2Vec.load('npy/word2vec_wx')
 
@@ -35,13 +37,13 @@ tf.flags.DEFINE_integer("num_checkpoints", 5, "Number of checkpoints to store (d
 tf.flags.DEFINE_boolean("allow_soft_placement", True, "Allow device soft device placement")
 tf.flags.DEFINE_boolean("log_device_placement", False, "Log placement of ops on devices")
 tf.flags.DEFINE_integer("checkpoint_every", 100, "Save model after this many steps (default: 100)")
-tf.flags.DEFINE_integer("evaluate_every", 10, "Evaluate model on dev set after this many steps (default: 100)")
+tf.flags.DEFINE_integer("evaluate_every", 100, "Evaluate model on dev set after this many steps (default: 100)")
 
 # 过滤特殊符号
 punct = set(u'''#ㄍ <>/\\[]:!)］∫,.:;?]}¢'"、。〉》」』】〕〗〞︰︱︳﹐､﹒
         ﹔﹕﹖﹗﹚﹜﹞！），．：；？｜｝︴︶︸︺︼︾﹀﹂﹄﹏､～￠
         々‖•·ˇˉ―--′’”([{£¥'"‵〈《「『【〔〖（［｛￡￥〝︵︷︹︻
-        ︽︿﹁﹃﹙﹛﹝（｛“‘-—_…''')
+        ︽︿﹁﹃﹙﹛﹝（｛“‘-—_…... ''')
 # 对str/unicode
 # filter_punt = lambda s: u''.join(filter(lambda x: x not in punct, s))
 filter_punt = lambda s: u''.join(filter(lambda x: True if pattern.match(x) else False , s))
@@ -71,7 +73,7 @@ def to_vector(senquence):
 
 def batch_iter(batch_size, epoch_num):
     res = []
-    with open('train_data_sample.json', 'r') as f:
+    with open('train_data_sample.json', 'r',encoding='utf-8') as f:
         json_obj = json.load(f)
     line_limit = 0
     ans_index = 0
@@ -133,12 +135,12 @@ def train():
                         embedding_size=embedding_size,
                         batch_size=batch_size,
                         num_filters=num_filters,
-                        filter_sizes=(4, 4, 5),
+                        filter_sizes=(2, 3, 4),
                         embeddingW=np.array(embeddingW))
 
             # Define Training procedure
             global_step = tf.Variable(0, name="global_step", trainable=False)
-            optimizer = tf.train.AdamOptimizer(1e-3)
+            optimizer = tf.train.AdamOptimizer(1e-4)
             grads_and_vars = optimizer.compute_gradients(cnn.loss)
             train_op = optimizer.apply_gradients(grads_and_vars, global_step=global_step)
 
@@ -183,12 +185,63 @@ def train():
                   cnn.answers: answers,
                   cnn.labels: labels,
                 }
+                """
                 _, step, summaries, loss, accuracy = sess.run(
                     [train_op, global_step, train_summary_op, cnn.loss, cnn.accuracy],
                     feed_dict)
+                """
+                global question_outputs,answer_outputs
+                _, step, summaries, loss, accuracy, question_outputs, answer_outputs= sess.run(
+                    [train_op, global_step, train_summary_op, cnn.loss, cnn.accuracy, cnn.question_outputs, cnn.answer_outputs],
+                    feed_dict)
                 time_str = datetime.datetime.now().isoformat()
+                print(len(question_outputs[0]))
+                print(len(answer_outputs[0]))
                 print("{}: step {}, loss {:g}, acc {:g}".format(time_str, step, loss, accuracy))
                 train_summary_writer.add_summary(summaries, step)
+
+         #定义了一个函数，用于验证集，输入为一个batch
+            '''def dev_step(x_batch, y_batch, writer=None):
+                """
+                Evaluates model on a dev set
+                """
+                #验证集太大，会爆内存，采用batch的思想进行计算，下面生成多个子验证集
+                num=20
+                x_batch=x_batch.tolist()
+                y_batch=y_batch.tolist()
+                l=len(y_batch)
+                l_20=int(l/num)
+                x_set=[]
+                y_set=[]
+                for i in range(num-1):
+                    x_temp=x_batch[i*l_20:(i+1)*l_20]
+                    x_set.append(x_temp)
+                    y_temp=y_batch[i*l_20:(i+1)*l_20]
+                    y_set.append(y_temp)
+                x_temp=x_batch[(num-1)*l_20:]
+                x_set.append(x_temp)
+                y_temp=y_batch[(num-1)*l_20:]
+                y_set.append(y_temp)
+
+                #每个batch验证集计算一下准确率，num个batch再平均
+                lis_loss=[]
+                lis_accu=[]
+                for i in range(num):    
+                    feed_dict = {
+                    cnn.input_x: np.array(x_set[i]),
+                    cnn.input_y: np.array(y_set[i]),
+                    #cnn.dropout_keep_prob: 1.0
+                    }
+                    step, summaries, loss, accuracy = sess.run(
+                    [global_step, dev_summary_op, cnn.loss, cnn.accuracy],
+                    feed_dict)
+                    lis_loss.append(loss)
+                    lis_accu.append(accuracy)
+                    time_str = datetime.datetime.now().isoformat()
+                    print("{}: step {}, loss {:g}, acc {:g}".format(time_str, step, loss, accuracy))
+                    print("test_loss and test_acc"+"\t\t"+str(sum(lis_loss)/num)+"\t\t"+str(sum(lis_accu)/num))
+                    if writer:
+                        writer.add_summary(summaries, step)'''
 
             # Generate batches
             batches = batch_iter(batch_size, num_epochs)
@@ -204,6 +257,10 @@ def train():
                     answers.append(answer)
                 train_step(questions=questions, answers=answers, labels=labels)
                 current_step = tf.train.global_step(sess, global_step)
+                '''if current_step % FLAGS.evaluate_every == 0:#每多少步，算一下验证集效果
+                print("\nEvaluation:")
+                dev_step(x_dev, y_dev, writer=dev_summary_writer)#喂的数据为验证集，此时大小不止一个batchsize1的大小
+                print("")'''
 train()
 dic_out = open("word.index", "wb")
 pickle.dump(dic, dic_out)
