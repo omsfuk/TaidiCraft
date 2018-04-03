@@ -25,7 +25,7 @@ filter_sizes = (5, 6, 7)
 dev_sample_percentage = 0.1
 embeddingW = []
 embeddingW.append(np.zeros(shape=(embedding_size)))
-sample_limit = 6400
+sample_limit = 1600
 
 model = gensim.models.Word2Vec.load('npy/word2vec_wx')
 
@@ -65,9 +65,7 @@ def to_vector(senquence):
             else:
                 embeddingW.append(np.array(model[word]))
             ans_list = ans_list + (index, )
-
     return np.array(ans_list)
-
 
 def batch_iter(batch_size, epoch_num):
     res = []
@@ -183,12 +181,13 @@ def train():
                   cnn.answers: answers,
                   cnn.labels: labels,
                 }
-                _, step, summaries, loss, accuracy = sess.run(
-                    [train_op, global_step, train_summary_op, cnn.loss, cnn.accuracy],
-                    feed_dict)
-                time_str = datetime.datetime.now().isoformat()
-                print("{}: step {}, loss {:g}, acc {:g}".format(time_str, step, loss, accuracy))
-                train_summary_writer.add_summary(summaries, step)
+                # _, step, summaries, loss, accuracy = sess.run([train_op, global_step, train_summary_op, cnn.loss, cnn.accuracy],feed_dict)
+                _, step, summaries, logits = sess.run([train_op, global_step, train_summary_op, cnn.logits],feed_dict)
+                print("shape %s" + str(logits.shape))
+                if step % 100 == 0:
+                    time_str = datetime.datetime.now().isoformat()
+                    print("{}: step {}, loss {:g}, acc {:g}".format(time_str, step, loss, accuracy))
+                    train_summary_writer.add_summary(summaries, step)
 
             # Generate batches
             batches = batch_iter(batch_size, num_epochs)
