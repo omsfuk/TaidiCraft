@@ -8,7 +8,6 @@ class TextCNN(object):
     A CNN for text classification.
     Uses an embedding layer, followed by a convolutional, max-pooling and softmax layer.
     """
-
     def __init__(
       self, vocab_size, question_length, answer_length,
       embedding_size, batch_size, num_filters, filter_sizes, embeddingW=None):
@@ -96,38 +95,26 @@ class TextCNN(object):
         self.answer_pool = tf.concat(answer_outputs, 2)
         self.answer_pool_flat = tf.reshape(self.answer_pool, [-1, num_filters_total])
 
-        def get_cos(x3, x4):
-            x3_norm = tf.sqrt(tf.reduce_sum(tf.square(x3), axis=2))
-            x4_norm = tf.sqrt(tf.reduce_sum(tf.square(x4), axis=2))
-            # 内积
-            x3_x4 = tf.reduce_sum(tf.multiply(x3, x4), axis=2)
-            return tf.divide(x3_x4, tf.multiply(x3_norm, x4_norm))
-
         with tf.name_scope("full-connected"):
             W = tf.Variable(tf.truncated_normal([num_filters_total, batch_size], stddev=0.1), name="W")
             b = tf.Variable(tf.constant(0.1, shape=[batch_size]), name="b")
             self.question_outputs = tf.matmul(self.question_pool_flat, W) + b
             self.answer_outputs = tf.matmul(self.answer_pool_flat, W) + b
         with tf.name_scope("loss"):
-            res = []
-            x_unstack = tf.unstack(question_outputs, axis=0)
-            y_unstack = tf.unstack(answer_outputs, axis=0)
-            assert len(x_unstack) == len(y_unstack)
-            for i in range(len(x_unstack)):
-                res.append(get_cos(x_unstack[i], y_unstack[i]))
-            self.logits = tf.reshape(tf.concat(res, 1), [-1, 1])
-
+            # self.labels=tf.reshape(self.labels,[-1, 32])
             self.loss=tf.reduce_mean(
-                    tf.nn.sigmoid_cross_entropy_with_logits(logits=self.logits, labels=self.labels))
+                    tf.nn.sigmoid_cross_entropy_with_logits(logits=
+                        tf.reshape(
+                            tf.diag_part(
+                                tf.matmul(
+                                    tf.transpose(self.question_outputs), self.answer_outputs)),
+                                [-1, 1]), 
+                labels=self.labels))
         with tf.name_scope("accuracy"):
-            res = []
-            x_unstack = tf.unstack(question_outputs, axis=0)
-            y_unstack = tf.unstack(answer_outputs, axis=0)
-            assert len(x_unstack) == len(y_unstack)
-            for i in range(len(x_unstack)):
-                res.append(get_cos(x_unstack[i], y_unstack[i]))
-            self.logits = tf.reshape(tf.concat(res, 1), [-1, 1])
-
-            self.a = tf.round(self.logits)
+            self.a = tf.round(tf.sigmoid(tf.reshape(
+                            tf.diag_part(
+                                tf.matmul(
+                                    tf.transpose(self.question_outputs), self.answer_outputs)),
+                                [-1, 1])), name=None)
             self.accuracy = tf.reduce_mean(tf.cast(tf.equal(self.a, self.labels), tf.float32))
 
