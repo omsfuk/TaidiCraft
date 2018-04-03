@@ -17,6 +17,8 @@ pattern = re.compile(r'[\u4e00-\u9fa5_a-zA-Z0-9１２３４５６７８９０]')
 dic = {'default_word': 0}
 batch_size = 64
 num_epochs = 5
+min_question_length = 5
+min_answer_length = 10
 question_length = 50
 answer_length = 64
 embedding_size = 256
@@ -25,7 +27,7 @@ filter_sizes = (5, 6, 7)
 dev_sample_percentage = 0.1
 embeddingW = []
 embeddingW.append(np.zeros(shape=(embedding_size)))
-sample_limit = 6400
+sample_limit = 6400 # 数据行数限制
 
 model = gensim.models.Word2Vec.load('npy/word2vec_wx')
 
@@ -73,9 +75,9 @@ def batch_iter(batch_size, epoch_num):
     res = []
     with open('train_data_sample.json', 'r') as f:
         json_obj = json.load(f)
-    line_limit = 0
     ans_index = 0
     for epoch_count in range(0, epoch_num):
+        line_limit = 0
         print("[%s] epoch %d" % (datetime.datetime.now().strftime('%b-%d-%y %H:%M:%S'), epoch_count + 1))
         for qa in json_obj:
             if line_limit > sample_limit:
@@ -83,7 +85,7 @@ def batch_iter(batch_size, epoch_num):
             question_seg = jieba.lcut(filter_punt(qa['question']), cut_all=False) # 问题 词序列
 
             # 问题长度过滤
-            if len(question_seg) > question_length:
+            if len(question_seg) > question_length or len(question_seg) < min_question_length:
                 continue
 
             question_seg = fill_list(question_seg, "default_word", question_length)
@@ -100,7 +102,7 @@ def batch_iter(batch_size, epoch_num):
 
                 answer_seg = jieba.lcut(filter_punt(ans['content']), cut_all=False) # 答案 词序列
                 # 答案长度过滤
-                if len(answer_seg) > answer_length:
+                if len(answer_seg) > answer_length or len(answer_seg) < min_answer_length:
                     continue
 
                 answer_seg = fill_list(answer_seg, "default_word", answer_length)
@@ -182,6 +184,7 @@ def train():
                   cnn.questions: questions,
                   cnn.answers: answers,
                   cnn.labels: labels,
+                  cnn.text: np.hstack((questions, answers))
                 }
                 _, step, summaries, loss, accuracy = sess.run(
                     [train_op, global_step, train_summary_op, cnn.loss, cnn.accuracy],
