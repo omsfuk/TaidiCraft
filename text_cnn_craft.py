@@ -50,7 +50,7 @@ class TextCNN(object):
                     padding="VALID",
                     name="conv2")
                 # Apply nonlinearity
-                h2 = tf.nn.tanh(tf.nn.bias_add(conv2, b2), name="tanh")
+                h2 = tf.nn.relu(tf.nn.bias_add(conv2, b2), name="relu2")
                 # Maxpooling over the outputs
                 pooled2 = tf.nn.max_pool(
                     h2,
@@ -74,7 +74,7 @@ class TextCNN(object):
                     padding="VALID",
                     name="conv2")
                 # Apply nonlinearity
-                h2 = tf.nn.tanh(tf.nn.bias_add(conv2, b2), name="tanh")
+                h2 = tf.nn.relu(tf.nn.bias_add(conv2, b2), name="relu2")
                 # Maxpooling over the outputs
                 pooled2 = tf.nn.max_pool(
                     h2,
