@@ -20,7 +20,6 @@ class TextCNN(object):
         text_length = question_length + answer_length
         self.text = tf.concat([self.questions, self.answers], axis=1)
         
-        # print('embeddingW',type(embeddingW))
         # Embedding layer
         with tf.name_scope("Embedding"):
             if embeddingW is not None:
@@ -61,7 +60,7 @@ class TextCNN(object):
         # Combine all the pooled features
         num_filters_total = num_filters * len(filter_sizes)
 
-        self.text_pool = tf.concat(text_outputs, 2)
+        self.text_pool = tf.concat(text_outputs, 3)
         self.text_pool_flat = tf.reshape(self.text_pool, [-1, num_filters_total])
 
         with tf.name_scope("full-connected"):

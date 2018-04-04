@@ -42,9 +42,10 @@ tf.flags.DEFINE_integer("filter_num", 128, "filternum")
 tf.flags.DEFINE_float("dev_sample_percentage", 0.2, "测试集比例")
 tf.flags.DEFINE_integer("evaluate_every", 100, "两次评估间隔")
 tf.flags.DEFINE_integer("word_precess_every", 5000, "单词处理信息打印间隔")
-tf.flags.DEFINE_integer("used_sample", 6400, "限制样本实际利用大小。当为None时为无限制")
+tf.flags.DEFINE_integer("used_sample", 32000, "限制样本实际利用大小。当为None时为无限制")
 # 注意检查点数量
 tf.flags.DEFINE_integer("num_checkpoints", 1, "检查点数量")
+tf.flags.DEFINE_integer("checkpoint_every", 5, "检查点数量")
 tf.flags.DEFINE_boolean("allow_soft_placement", True, "Allow device soft device placement")
 tf.flags.DEFINE_boolean("log_device_placement", False, "Log placement of ops on devices")
 
@@ -245,5 +246,8 @@ with tf.Graph().as_default():
                 ans = np.average(ans, axis=0)
                 print("loss {:g}, acc {:g}".format(ans.tolist()[0], ans.tolist()[1]))
                 print("")
+            if current_step % FLAGS.checkpoint_every == 0:
+                path = saver.save(sess, checkpoint_prefix, global_step=current_step)
+                print("Saved model checkpoint to {}\n".format(path))
 
 

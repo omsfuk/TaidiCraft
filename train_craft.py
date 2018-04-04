@@ -17,7 +17,7 @@ pattern = re.compile(r'[\u4e00-\u9fa5_a-zA-Z0-9１２３４５６７８９０]')
 # dic = pickle.load(open("word.index", 'rb'))
 dic = {'default_word': 0}
 batch_size = 64
-num_epochs = 5
+num_epochs = 20
 min_question_length = 5
 min_answer_length = 10
 question_length = 50
@@ -28,7 +28,7 @@ filter_sizes = (5, 6, 7)
 dev_sample_percentage = 0.1
 embeddingW = []
 embeddingW.append(np.zeros(shape=(embedding_size)))
-sample_limit = 640 # 数据行数限制
+sample_limit = 6400 # 数据行数限制
 
 model = gensim.models.Word2Vec.load('npy/word2vec_wx')
 
