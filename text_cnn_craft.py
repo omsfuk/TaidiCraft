@@ -87,10 +87,10 @@ class TextCNN(object):
         # Combine all the pooled features
         num_filters_total = num_filters * len(filter_sizes)
 
-        self.question_pool = tf.concat(question_outputs, 2)
+        self.question_pool = tf.concat(question_outputs, 3)
         self.question_pool_flat = tf.reshape(self.question_pool, [-1, num_filters_total])
 
-        self.answer_pool = tf.concat(answer_outputs, 2)
+        self.answer_pool = tf.concat(answer_outputs, 3)
         self.answer_pool_flat = tf.reshape(self.answer_pool, [-1, num_filters_total])
 
         def cosine(x3, x4):
