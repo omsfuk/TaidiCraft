@@ -16,14 +16,14 @@ class TextCNN(object):
         self.questions = tf.placeholder(tf.int32, [None, question_length], name="questions")
         self.answers = tf.placeholder(tf.int32, [None, answer_length], name="answers")
         self.labels = tf.placeholder(tf.float32, [None, 1], name="labels")
-
+        
         text_length = question_length + answer_length
-        self.text = tf.concat([self.questions, self.answers], axis=1)
+        self.text = tf.concat((self.questions, self.answers), axis=1)
         
         # Embedding layer
         with tf.name_scope("Embedding"):
             if embeddingW is not None:
-                self.W = tf.Variable(tf.cast(tf.Variable(embeddingW), tf.float32), trainable=True, name="W")
+                self.W = tf.cast(tf.Variable(embeddingW, name="W"), tf.float32)
             else:
                 self.W = tf.Variable(tf.random_uniform([vocab_size, embedding_size], -1.0, 1.0),
                     trainable=True, name="W")
@@ -63,13 +63,20 @@ class TextCNN(object):
         self.text_pool = tf.concat(text_outputs, 3)
         self.text_pool_flat = tf.reshape(self.text_pool, [-1, num_filters_total])
 
+        def cosine(x3, x4):
+            x3_norm = tf.sqrt(tf.reduce_sum(tf.square(x3), axis=1))
+            x4_norm = tf.sqrt(tf.reduce_sum(tf.square(x4), axis=1))
+            #内积
+            x3_x4 = tf.reduce_sum(tf.multiply(x3, x4), axis=1)
+            return tf.divide(x3_x4, tf.multiply(x3_norm, x4_norm))
+
         with tf.name_scope("full-connected"):
             W = tf.Variable(tf.truncated_normal([num_filters_total, batch_size], stddev=0.1), name="W")
             b = tf.Variable(tf.constant(0.1, shape=[batch_size]), name="b")
             self.text_outputs = tf.matmul(self.text_pool_flat, W) + b
         with tf.name_scope("loss"):
-            self.loss = tf.reduce_mean(tf.nn.sigmoid_cross_entropy_with_logits(logits=tf.reshape(tf.reduce_max(self.text_outputs, axis=1), [-1, 1]), labels=self.labels))
+            self.loss=tf.reduce_mean(tf.nn.sigmoid_cross_entropy_with_logits(logits=tf.reshape(tf.reduce_sum(self.text_outputs, axis=1), [-1, 1]), labels=self.labels))
         with tf.name_scope("accuracy"):
-            self.a = tf.round(tf.sigmoid(tf.reshape(tf.diag_part(self.text_outputs), [-1, 1])), name=None)
+            self.a = tf.round(tf.sigmoid(tf.reshape(tf.diag_part(self.text_outputs) ,[-1, 1])))
             self.accuracy = tf.reduce_mean(tf.cast(tf.equal(self.a, self.labels), tf.float32))
 

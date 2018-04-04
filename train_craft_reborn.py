@@ -11,6 +11,7 @@ import gensim
 from text_cnn_craft import TextCNN
 from lib_craft import _now
 from lib_craft import expand_array 
+from tensorflow.python import debug as tf_debug
 
 # 正文匹配，过滤特殊字符
 pattern = re.compile(r'[\u4e00-\u9fa5_a-zA-Z0-9１２３４５６７８９０]')
@@ -37,15 +38,14 @@ tf.flags.DEFINE_integer("min_question_length", 2, "最小问题长度")
 tf.flags.DEFINE_integer("max_answer_length", 64, "最大答案长度")
 tf.flags.DEFINE_integer("min_answer_length", 5, "最小答案长度")
 tf.flags.DEFINE_integer("embedding_size", 256, "embedding size")
-tf.flags.DEFINE_string("filter_sizes", "3,4,5", "filter sizes")
+tf.flags.DEFINE_string("filter_sizes", "3, 4, 5", "filter sizes")
 tf.flags.DEFINE_integer("filter_num", 128, "filternum")
 tf.flags.DEFINE_float("dev_sample_percentage", 0.2, "测试集比例")
 tf.flags.DEFINE_integer("evaluate_every", 100, "两次评估间隔")
 tf.flags.DEFINE_integer("word_precess_every", 5000, "单词处理信息打印间隔")
-tf.flags.DEFINE_integer("used_sample", 32000, "限制样本实际利用大小。当为None时为无限制")
-# 注意检查点数量
-tf.flags.DEFINE_integer("num_checkpoints", 1, "检查点数量")
-tf.flags.DEFINE_integer("checkpoint_every", 5, "检查点数量")
+tf.flags.DEFINE_integer("used_sample", 6400, "限制样本实际利用大小。当为None时为无限制")
+tf.flags.DEFINE_integer("num_checkpoints", 5, "检查点数量")
+tf.flags.DEFINE_integer("checkpoint_every", 100, "检查点周期")
 tf.flags.DEFINE_boolean("allow_soft_placement", True, "Allow device soft device placement")
 tf.flags.DEFINE_boolean("log_device_placement", False, "Log placement of ops on devices")
 
@@ -58,6 +58,8 @@ def get_sample_size():
     with open('train_data_sample.json', 'r', encoding='utf-8') as f:
         json_obj = json.load(f)
     return len([1 for qa in json_obj for ans in qa['passages']])
+
+
 
 """
 词序列到向量
@@ -80,6 +82,41 @@ def convert_to_word_vector(senquence, dest_length):
             ans.append(index)
     ans = expand_array(ans, dest_length=dest_length)
     return np.array(ans)
+
+"""
+初始化sample && 词向量。json => list
+"""
+def init(end_pos=100000000):
+    res = []
+    valid_sample = 1
+    with open('train_data_sample.json', 'r',encoding='utf-8') as f:
+        json_obj = json.load(f)
+    line_count = 0
+    for qa in json_obj:
+        question = qa['question']
+        question_seg = jieba.lcut(filter_punt(question), cut_all=False) # 问题 词序列
+        # 问题长度过滤
+        if len(question_seg) > FLAGS.max_question_length or len(question_seg) < FLAGS.min_question_length:
+            continue
+
+        if line_count > end_pos:
+            break
+
+        for ans in qa['passages']:
+            # 样本数量限制
+            answer = ans['content']
+            line_count = line_count + 1
+            if line_count > end_pos:
+                break
+
+            # 答案长度过滤
+            if len(answer_seg) > FLAGS.max_answer_length or len(answer_seg) < FLAGS.min_question_length:
+                continue
+            valid_sample = valid_sample + 1
+            res.append((label, question, answer))
+    res = np.array(res)
+    shuffle_indices = np.random.permutation(np.arange(batch_size))
+    return (valid_sample, res[shuffle_indices])
 
 """
 生成训练数据。分批生成，节约Menory。假定样本书不超过1 * 10^^8
@@ -149,7 +186,9 @@ with tf.Graph().as_default():
       allow_soft_placement=FLAGS.allow_soft_placement,
       log_device_placement=FLAGS.log_device_placement)
     sess = tf.Session(config=session_conf)
+    # with sess:
     with sess.as_default():
+        # sess = tf_debug.LocalCLIDebugWrapperSession(sess=sess)
         cnn = TextCNN(vocab_size=len(dic),
                     question_length=FLAGS.max_question_length,
                     answer_length=FLAGS.max_answer_length,
@@ -213,20 +252,25 @@ with tf.Graph().as_default():
             }
             _, step, summaries, loss, accuracy = sess.run(
                 [train_op, global_step, train_summary_op, cnn.loss, cnn.accuracy], feed_dict)
+                                    
             time_str = datetime.datetime.now().isoformat()                
             print("{}: step {}, loss {:g}, acc {:g}".format(time_str, step, loss, accuracy))
             train_summary_writer.add_summary(summaries, step)
      
         def dev_step(labels, questions, answers):
+            """
+            Evaluates model on a dev set
+            """
             feed_dict = {
                 cnn.questions: questions,
                 cnn.answers: answers,
                 cnn.labels: labels
             }
-            step, summaries, loss, accuracy = sess.run([global_step, dev_summary_op, cnn.loss, cnn.accuracy], feed_dict)
+            step, summaries, loss, accuracy = sess.run(
+                    [global_step, dev_summary_op, cnn.loss, cnn.accuracy], feed_dict)
+            dev_summary_writer.add_summary(summaries, step)
             time_str = datetime.datetime.now().isoformat()
             print("{}: step {}, loss {:g}, acc {:g}".format(time_str, step, loss, accuracy))
-            dev_summary_writer.add_summary(summaries, step)
             return (loss, accuracy)
 
         # Generate batches
