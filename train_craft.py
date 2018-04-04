@@ -10,6 +10,7 @@ import os
 import datetime
 import gensim
 from text_cnn_craft import TextCNN
+from tensorflow.python import debug as tf_debug
 
 input = open("train_data_sample.json",encoding='utf-8')
 pattern = re.compile(r'[\u4e00-\u9fa5_a-zA-Z0-9１２３４５６７８９０]')
@@ -27,7 +28,7 @@ filter_sizes = (5, 6, 7)
 dev_sample_percentage = 0.1
 embeddingW = []
 embeddingW.append(np.zeros(shape=(embedding_size)))
-sample_limit = 6400 # 数据行数限制
+sample_limit = 640 # 数据行数限制
 
 model = gensim.models.Word2Vec.load('npy/word2vec_wx')
 
@@ -123,7 +124,10 @@ def train():
         continue
 
     FLAGS = tf.flags.FLAGS
-    with tf.Graph().as_default():
+    with tf.Session() as sess:
+    # with tf.Graph().as_default() as sess:
+        sess = tf_debug.LocalCLIDebugWrapperSession(sess)
+        sess.add_tensor_filter("has_inf_or_nan", tf_debug.has_inf_or_nan)
         session_conf = tf.ConfigProto(
           allow_soft_placement=FLAGS.allow_soft_placement,
           log_device_placement=FLAGS.log_device_placement)
@@ -184,7 +188,6 @@ def train():
                   cnn.questions: questions,
                   cnn.answers: answers,
                   cnn.labels: labels,
-                  cnn.text: np.hstack((questions, answers))
                 }
                 _, step, summaries, loss, accuracy = sess.run(
                     [train_op, global_step, train_summary_op, cnn.loss, cnn.accuracy],
