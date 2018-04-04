@@ -11,7 +11,6 @@ import gensim
 from text_cnn_craft import TextCNN
 from lib_craft import _now
 from lib_craft import expand_array 
-from tensorflow.python import debug as tf_debug
 
 # 正文匹配，过滤特殊字符
 pattern = re.compile(r'[\u4e00-\u9fa5_a-zA-Z0-9１２３４５６７８９０]')
@@ -150,9 +149,7 @@ with tf.Graph().as_default():
       allow_soft_placement=FLAGS.allow_soft_placement,
       log_device_placement=FLAGS.log_device_placement)
     sess = tf.Session(config=session_conf)
-    # with sess:
     with sess.as_default():
-        # sess = tf_debug.LocalCLIDebugWrapperSession(sess=sess)
         cnn = TextCNN(vocab_size=len(dic),
                     question_length=FLAGS.max_question_length,
                     answer_length=FLAGS.max_answer_length,
