@@ -18,14 +18,13 @@ class TextCNN(object):
         self.labels = tf.placeholder(tf.float32, [None, 1], name="labels")
 
         text_length = question_length + answer_length
-        # self.text = tf.placeholder(tf.int32, [None, text_length], name="text")
         self.text = tf.concat([self.questions, self.answers], axis=1)
         
         # print('embeddingW',type(embeddingW))
         # Embedding layer
         with tf.name_scope("Embedding"):
             if embeddingW is not None:
-                self.W = tf.cast(tf.Variable(embeddingW, name="W"), tf.float32)
+                self.W = tf.Variable(tf.cast(tf.Variable(embeddingW), tf.float32), trainable=True, name="W")
             else:
                 self.W = tf.Variable(tf.random_uniform([vocab_size, embedding_size], -1.0, 1.0),
                     trainable=True, name="W")
@@ -70,25 +69,8 @@ class TextCNN(object):
             b = tf.Variable(tf.constant(0.1, shape=[batch_size]), name="b")
             self.text_outputs = tf.matmul(self.text_pool_flat, W) + b
         with tf.name_scope("loss"):
-            self.loss = tf.reduce_mean(tf.nn.sigmoid_cross_entropy_with_logits(logits=tf.reshape(tf.diag_part(self.text_outputs), [-1, 1]), labels=self.labels))
-            """
-            self.loss=tf.reduce_mean(
-                    tf.nn.sigmoid_cross_entropy_with_logits(logits=
-                        tf.reshape(
-                            tf.diag_part(
-                                tf.matmul(
-                                    tf.transpose(self.question_outputs), self.answer_outputs)),
-                                [-1, 1]), 
-                labels=self.labels))
-            """
+            self.loss = tf.reduce_mean(tf.nn.sigmoid_cross_entropy_with_logits(logits=tf.reshape(tf.reduce_max(self.text_outputs, axis=1), [-1, 1]), labels=self.labels))
         with tf.name_scope("accuracy"):
-            """
-            self.a = tf.round(tf.sigmoid(tf.reshape(
-                            tf.diag_part(
-                                tf.matmul(
-                                    tf.transpose(self.question_outputs), self.answer_outputs)),
-                                [-1, 1])), name=None)
-            """
             self.a = tf.round(tf.sigmoid(tf.reshape(tf.diag_part(self.text_outputs), [-1, 1])), name=None)
             self.accuracy = tf.reduce_mean(tf.cast(tf.equal(self.a, self.labels), tf.float32))
 

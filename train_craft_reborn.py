@@ -37,13 +37,14 @@ tf.flags.DEFINE_integer("min_question_length", 2, "最小问题长度")
 tf.flags.DEFINE_integer("max_answer_length", 64, "最大答案长度")
 tf.flags.DEFINE_integer("min_answer_length", 5, "最小答案长度")
 tf.flags.DEFINE_integer("embedding_size", 256, "embedding size")
-tf.flags.DEFINE_string("filter_sizes", "3, 4, 5", "filter sizes")
+tf.flags.DEFINE_string("filter_sizes", "3,4,5", "filter sizes")
 tf.flags.DEFINE_integer("filter_num", 128, "filternum")
 tf.flags.DEFINE_float("dev_sample_percentage", 0.2, "测试集比例")
 tf.flags.DEFINE_integer("evaluate_every", 100, "两次评估间隔")
 tf.flags.DEFINE_integer("word_precess_every", 5000, "单词处理信息打印间隔")
 tf.flags.DEFINE_integer("used_sample", 6400, "限制样本实际利用大小。当为None时为无限制")
-tf.flags.DEFINE_integer("num_checkpoints", 5, "检查点数量")
+# 注意检查点数量
+tf.flags.DEFINE_integer("num_checkpoints", 1, "检查点数量")
 tf.flags.DEFINE_boolean("allow_soft_placement", True, "Allow device soft device placement")
 tf.flags.DEFINE_boolean("log_device_placement", False, "Log placement of ops on devices")
 
@@ -56,8 +57,6 @@ def get_sample_size():
     with open('train_data_sample.json', 'r', encoding='utf-8') as f:
         json_obj = json.load(f)
     return len([1 for qa in json_obj for ans in qa['passages']])
-
-
 
 """
 词序列到向量
@@ -213,24 +212,20 @@ with tf.Graph().as_default():
             }
             _, step, summaries, loss, accuracy = sess.run(
                 [train_op, global_step, train_summary_op, cnn.loss, cnn.accuracy], feed_dict)
-                                    
             time_str = datetime.datetime.now().isoformat()                
             print("{}: step {}, loss {:g}, acc {:g}".format(time_str, step, loss, accuracy))
             train_summary_writer.add_summary(summaries, step)
      
         def dev_step(labels, questions, answers):
-            """
-            Evaluates model on a dev set
-            """
             feed_dict = {
                 cnn.questions: questions,
                 cnn.answers: answers,
                 cnn.labels: labels
             }
             step, summaries, loss, accuracy = sess.run([global_step, dev_summary_op, cnn.loss, cnn.accuracy], feed_dict)
-            dev_summary_writer.add_summary(summaries, step)
             time_str = datetime.datetime.now().isoformat()
             print("{}: step {}, loss {:g}, acc {:g}".format(time_str, step, loss, accuracy))
+            dev_summary_writer.add_summary(summaries, step)
             return (loss, accuracy)
 
         # Generate batches
