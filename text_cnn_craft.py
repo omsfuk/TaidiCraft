@@ -10,12 +10,12 @@ class TextCNN(object):
     """
     def __init__(
       self, vocab_size, question_length, answer_length,
-      embedding_size, batch_size, num_filters, filter_sizes, embeddingW=None):
+      embedding_size, classes_num, num_filters, filter_sizes, embeddingW=None):
         # Placeholders for input, output and dropout
 
         self.questions = tf.placeholder(tf.int32, [None, question_length], name="questions")
         self.answers = tf.placeholder(tf.int32, [None, answer_length], name="answers")
-        self.labels = tf.placeholder(tf.float32, [None, 1], name="labels")
+        self.labels = tf.placeholder(tf.float32, [None, classes_num], name="labels")
         
         text_length = question_length + answer_length
         self.text = tf.concat((self.questions, self.answers), axis=1)
@@ -71,12 +71,12 @@ class TextCNN(object):
             return tf.divide(x3_x4, tf.multiply(x3_norm, x4_norm))
 
         with tf.name_scope("full-connected"):
-            W = tf.Variable(tf.truncated_normal([num_filters_total, batch_size], stddev=0.1), name="W")
-            b = tf.Variable(tf.constant(0.1, shape=[batch_size]), name="b")
+            W = tf.Variable(tf.truncated_normal([num_filters_total, classes_num], stddev=0.1), name="W")
+            b = tf.Variable(tf.constant(0.1, shape=[classes_num]), name="b")
             self.text_outputs = tf.matmul(self.text_pool_flat, W) + b
         with tf.name_scope("loss"):
-            self.loss=tf.reduce_mean(tf.nn.sigmoid_cross_entropy_with_logits(logits=tf.reshape(tf.reduce_sum(self.text_outputs, axis=1), [-1, 1]), labels=self.labels))
+            self.loss=tf.reduce_mean(tf.nn.softmax_cross_entropy_with_logits(logits=self.text_outputs, labels=self.labels))
         with tf.name_scope("accuracy"):
-            self.a = tf.round(tf.sigmoid(tf.reshape(tf.diag_part(self.text_outputs) ,[-1, 1])))
-            self.accuracy = tf.reduce_mean(tf.cast(tf.equal(self.a, self.labels), tf.float32))
+            self.a = tf.argmax(self.text_outputs, 1)
+            self.accuracy = tf.reduce_mean(tf.cast(tf.equal(self.a, tf.argmax(self.labels, 1)), tf.float32))
 
