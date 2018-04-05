@@ -12,6 +12,7 @@ import pickle
 from text_cnn_craft import TextCNN
 from lib_craft import _now
 from lib_craft import expand_array 
+from lib_craft import balance_sample
 from tensorflow.python import debug as tf_debug
 
 # 正文匹配，过滤特殊字符
@@ -41,9 +42,9 @@ tf.flags.DEFINE_integer("embedding_size", 256, "embedding size")
 tf.flags.DEFINE_string("filter_sizes", "3, 4, 5", "filter sizes")
 tf.flags.DEFINE_integer("filter_num", 128, "filternum")
 tf.flags.DEFINE_float("dev_sample_percentage", 0.2, "测试集比例")
-tf.flags.DEFINE_integer("evaluate_every", 10, "两次评估间隔")
+tf.flags.DEFINE_integer("evaluate_every", 50, "两次评估间隔")
 tf.flags.DEFINE_integer("word_precess_every", 5000, "单词处理信息打印间隔")
-tf.flags.DEFINE_integer("used_sample", 6400, "限制样本实际利用大小。当为None时为无限制")
+tf.flags.DEFINE_integer("used_sample", 32000, "限制样本实际利用大小。当为None时为无限制")
 tf.flags.DEFINE_integer("num_checkpoints", 5, "检查点数量")
 tf.flags.DEFINE_integer("checkpoint_every", 100, "检查点周期")
 tf.flags.DEFINE_boolean("allow_soft_placement", True, "Allow device soft device placement")
@@ -84,7 +85,7 @@ def convert_to_word_vector(senquence, dest_length):
 """
 初始化sample && 词向量。json => list
 """
-def init(end_pos=100000000):
+def init(end_pos=100000000, enable_balance_sample=True):
     res = []
     valid_sample = 0
     total_sample = 0
@@ -119,8 +120,12 @@ def init(end_pos=100000000):
             else:
                 label = [0, 1]
             res.append((label, question_seg, answer_seg))
-    res = np.array(res)
-    return (total_sample, valid_sample, res)
+    if enable_balance_sample:
+        res = balance_sample(res)
+        shuffle_indices = np.random.permutation(np.arange(len(res)))
+        res = res[shuffle_indices]
+        valid_sample = len(res)
+    return (total_sample, valid_sample, np.array(res))
 
 
 """
@@ -159,8 +164,8 @@ with open("word.index", "wb") as f:
     pickle.dump(dic, f)
 
 print("total_sample:\t\t %d" % FLAGS.used_sample if FLAGS.used_sample is not None else total_sample)
-print("valid_sample:t\t %d" % valid_sample)
-print("dict_size: %d\t\t" % len(dic))
+print("valid_sample:\t\t %d" % valid_sample)
+print("dict_size:\t\t %d" % len(dic))
 print("train_sample:\t\t %d" % (valid_sample + dev_sample_index))
 print("dev_sample:\t\t %d" % (-dev_sample_index))
 
