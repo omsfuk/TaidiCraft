@@ -122,6 +122,7 @@ def init(end_pos=100000000, enable_balance_sample=True):
             res.append((label, question_seg, answer_seg))
     if enable_balance_sample:
         balance_sample(res)
+        valid_sample = len(res)
     return (total_sample, valid_sample, np.array(res))
 
 
