@@ -28,7 +28,6 @@ punct = set(u'''#ㄍ <>/\\[]:!)］∫,.:;?]}¢'"、。〉》」』】〕〗〞�
 filter_punt = lambda s: u''.join(filter(lambda x: True if pattern.match(x) and x not in punct else False , s))
 embeddingW = []
 # 有效数据条数
-valid_sample = 0
 
 # 常量定义
 tf.flags.DEFINE_integer("batch_size", 64, "数据集大小")
@@ -43,8 +42,9 @@ tf.flags.DEFINE_integer("filter_num", 128, "filternum")
 tf.flags.DEFINE_float("dev_sample_percentage", 0.2, "测试集比例")
 tf.flags.DEFINE_integer("evaluate_every", 100, "两次评估间隔")
 tf.flags.DEFINE_integer("word_precess_every", 5000, "单词处理信息打印间隔")
-tf.flags.DEFINE_integer("used_sample", None, "限制样本实际利用大小。当为None时为无限制")
+tf.flags.DEFINE_integer("used_sample", 6400, "限制样本实际利用大小。当为None时为无限制")
 tf.flags.DEFINE_integer("num_checkpoints", 5, "检查点数量")
+tf.flags.DEFINE_integer("checkpoint_every", 100, "检查点周期")
 tf.flags.DEFINE_boolean("allow_soft_placement", True, "Allow device soft device placement")
 tf.flags.DEFINE_boolean("log_device_placement", False, "Log placement of ops on devices")
 
@@ -83,67 +83,83 @@ def convert_to_word_vector(senquence, dest_length):
     return np.array(ans)
 
 """
-生成训练数据。分批生成，节约Menory。假定样本书不超过1 * 10^^8
+初始化sample && 词向量。json => list
 """
-def batch_iter(batch_size, epoch_num, start_pos=0, end_pos=100000000, get_valid_sample=False):
-    global valid_sample
+def init(end_pos=100000000):
     res = []
+    valid_sample = 0
+    total_sample = 0
     with open('train_data_sample.json', 'r',encoding='utf-8') as f:
         json_obj = json.load(f)
-    for epoch_count in range(0, epoch_num):
-        line_count = 0
-        if get_valid_sample == False:
-            print("[%s] epoch %d" % (datetime.datetime.now().strftime('%b-%d-%y %H:%M:%S'), epoch_count + 1))
-        for qa in json_obj:
+    line_count = 0
+    for qa in json_obj:
+        question = qa['question']
+        question_seg = jieba.lcut(filter_punt(question), cut_all=False) # 问题 词序列
+        # 问题长度过滤
+        if len(question_seg) > FLAGS.max_question_length or len(question_seg) < FLAGS.min_question_length:
+            continue
+
+        if line_count > end_pos:
+            break
+
+        for ans in qa['passages']:
+            total_sample = total_sample + 1
+            # 样本数量限制
+            answer = ans['content']
+            line_count = line_count + 1
             if line_count > end_pos:
                 break
-            question_seg = jieba.lcut(filter_punt(qa['question']), cut_all=False) # 问题 词序列
 
-            # 问题长度过滤
-            if len(question_seg) > FLAGS.max_question_length or len(question_seg) < FLAGS.min_question_length:
+            answer_seg = jieba.lcut(filter_punt(answer), cut_all=False) # 问题 词序列
+            # 答案长度过滤
+            if len(answer_seg) > FLAGS.max_answer_length or len(answer_seg) < FLAGS.min_question_length:
                 continue
+            valid_sample = valid_sample + 1
+            if ans['label'] == 0:
+                label = [1, 0]
+            else:
+                label = [0, 1]
+            res.append((label, question_seg, answer_seg))
+    res = np.array(res)
+    return (total_sample, valid_sample, res)
 
-            for ans in qa['passages']:
-                # 样本数量限制
-                line_count = line_count + 1
-                if line_count > end_pos:
-                    break
-
-                if line_count > start_pos:
-                    answer_seg = jieba.lcut(filter_punt(ans['content']), cut_all=False) # 答案 词序列
-                    # 答案长度过滤
-                    if len(answer_seg) > FLAGS.max_answer_length or len(answer_seg) < FLAGS.min_question_length:
-                        continue
-
-                    vector = (np.array((ans['label'] * 1.0, )).tolist(),
-                                    convert_to_word_vector(question_seg, FLAGS.max_question_length).tolist(),
-                                    convert_to_word_vector(answer_seg, FLAGS.max_answer_length).tolist()) # 一行向量 (label, question, answer)
-                    res.append(vector)
-
-                    # 获取有效数据 模式
-                    if get_valid_sample == True:
-                        valid_sample = valid_sample + 1
-                        if line_count % FLAGS.word_precess_every == 0:
-                            print("[%s] processing %d question/answer pair" % (_now(), line_count))
-                    else:
-                        if len(res) == batch_size:
-                            res = np.array(res)
-                            shuffle_indices = np.random.permutation(np.arange(batch_size))
-                            shuffled_data = res[shuffle_indices]
-                            yield shuffled_data.tolist()
-                            res = []
+"""
+生成训练数据。分批生成，节约Menory。假定样本书不超过1 * 10^^8
+"""
+def batch_iter(data, batch_size, epoch_num, shuffle=True):
+    data = np.array(data)
+    data_size = len(data)
+    num_batches_per_epoch = int((len(data)-1)/batch_size) + 1
+    for epoch in range(epoch_num):
+        # Shuffle the data at each epoch
+        if shuffle:
+            shuffle_indices = np.random.permutation(np.arange(data_size))
+            shuffled_data = data[shuffle_indices]
+        else:
+            shuffled_data = data
+        for batch_num in range(num_batches_per_epoch):
+            start_index = batch_num * batch_size
+            end_index = min((batch_num + 1) * batch_size, data_size)
+            res = []
+            for label, question, answer in shuffled_data[start_index:end_index]:
+                res.append((label,
+                        convert_to_word_vector(question, FLAGS.max_question_length),
+                        convert_to_word_vector(answer, FLAGS.max_answer_length)))
+            yield np.array(res)
 
 print("[%s] getting extract statistics..." % _now())
 embeddingW.append(np.zeros((FLAGS.embedding_size)))
-sample_size = dev_end_pos = get_sample_size() if FLAGS.used_sample is None else FLAGS.used_sample
-train_end_pos = dev_start_pos = (sample_size * (1 - FLAGS.dev_sample_percentage))
-for _ in batch_iter(FLAGS.batch_size, 1, 0, sample_size, get_valid_sample=True):
+total_sample, valid_sample, text_data = init(FLAGS.used_sample)
+dev_sample_index = -1 * int(FLAGS.dev_sample_percentage * float(valid_sample))
+data_train, data_dev = text_data[:dev_sample_index], text_data[dev_sample_index:]
+for _ in batch_iter(text_data, FLAGS.batch_size, FLAGS.epoch_num):
     continue
-print("total_sample:\t\t %d" % sample_size)
+
+print("total_sample:\t\t %d" % FLAGS.used_sample if FLAGS.used_sample is not None else total_sample)
 print("valid_sample:t\t %d" % valid_sample)
 print("dict_size: %d\t\t" % len(dic))
-print("train_sample:\t\t [%d, %d]" % (0, train_end_pos))
-print("dev_sample:\t\t [%d, %d]" % (dev_start_pos, dev_end_pos))
+print("train_sample:\t\t %d" % (valid_sample + dev_sample_index))
+print("dev_sample:\t\t %d" % (-dev_sample_index))
 
 with tf.Graph().as_default():
     session_conf = tf.ConfigProto(
@@ -157,8 +173,8 @@ with tf.Graph().as_default():
                     question_length=FLAGS.max_question_length,
                     answer_length=FLAGS.max_answer_length,
                     embedding_size=FLAGS.embedding_size,
-                    batch_size=FLAGS.batch_size,
                     num_filters=FLAGS.filter_num,
+                    classes_num=2,
                     filter_sizes=list(map(int, FLAGS.filter_sizes.split(","))),
                     embeddingW=np.array(embeddingW))
 
@@ -230,14 +246,15 @@ with tf.Graph().as_default():
                 cnn.answers: answers,
                 cnn.labels: labels
             }
-            step, summaries, loss, accuracy = sess.run([global_step, dev_summary_op, cnn.loss, cnn.accuracy], feed_dict)
+            step, summaries, loss, accuracy = sess.run(
+                    [global_step, dev_summary_op, cnn.loss, cnn.accuracy], feed_dict)
             dev_summary_writer.add_summary(summaries, step)
             time_str = datetime.datetime.now().isoformat()
             print("{}: step {}, loss {:g}, acc {:g}".format(time_str, step, loss, accuracy))
             return (loss, accuracy)
 
         # Generate batches
-        batches = batch_iter(FLAGS.batch_size, FLAGS.epoch_num, start_pos=0, end_pos=train_end_pos)
+        batches = batch_iter(data_train, FLAGS.batch_size, FLAGS.epoch_num)
         # Training loop. For each batch...
         for batch in batches:
             labels, questions, answers = zip(*batch)
@@ -245,7 +262,7 @@ with tf.Graph().as_default():
             current_step = tf.train.global_step(sess, global_step)
             if current_step % FLAGS.evaluate_every == 0:
                 print("\nEvaluation:")
-                dev_batchs= batch_iter(FLAGS.batch_size, 1, start_pos=dev_start_pos, end_pos=dev_end_pos)
+                dev_batchs = batch_iter(data_dev, FLAGS.batch_size, 1)
                 ans = []
                 for dev_batch in dev_batchs:
                     labels, questions, answers = zip(*dev_batch)
@@ -253,5 +270,8 @@ with tf.Graph().as_default():
                 ans = np.average(ans, axis=0)
                 print("loss {:g}, acc {:g}".format(ans.tolist()[0], ans.tolist()[1]))
                 print("")
+            if current_step % FLAGS.checkpoint_every == 0:
+                path = saver.save(sess, checkpoint_prefix, global_step=current_step)
+                print("Saved model checkpoint to {}\n".format(path))
 
 
