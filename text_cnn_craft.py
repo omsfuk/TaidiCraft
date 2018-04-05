@@ -23,7 +23,7 @@ class TextCNN(object):
         # Embedding layer
         with tf.name_scope("Embedding"):
             if embeddingW is not None:
-                self.W = tf.cast(tf.Variable(embeddingW, name="W"), tf.float32)
+                self.W = tf.Variable(embeddingW, name="W", trainable=True)
             else:
                 self.W = tf.Variable(tf.random_uniform([vocab_size, embedding_size], -1.0, 1.0),
                     trainable=True, name="W")
@@ -70,13 +70,13 @@ class TextCNN(object):
             x3_x4 = tf.reduce_sum(tf.multiply(x3, x4), axis=1)
             return tf.divide(x3_x4, tf.multiply(x3_norm, x4_norm))
 
-        with tf.name_scope("full-connected"):
+        with tf.name_scope("output"):
             W = tf.Variable(tf.truncated_normal([num_filters_total, classes_num], stddev=0.1), name="W")
             b = tf.Variable(tf.constant(0.1, shape=[classes_num]), name="b")
             self.text_outputs = tf.matmul(self.text_pool_flat, W) + b
+            self.predictions = tf.argmax(self.text_outputs, 1, "predictions")
         with tf.name_scope("loss"):
             self.loss=tf.reduce_mean(tf.nn.softmax_cross_entropy_with_logits(logits=self.text_outputs, labels=self.labels))
         with tf.name_scope("accuracy"):
-            self.a = tf.argmax(self.text_outputs, 1)
-            self.accuracy = tf.reduce_mean(tf.cast(tf.equal(self.a, tf.argmax(self.labels, 1)), tf.float32))
+            self.accuracy = tf.reduce_mean(tf.cast(tf.equal(self.predictions, tf.argmax(self.labels, 1)), tf.float32))
 

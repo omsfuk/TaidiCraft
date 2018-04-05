@@ -1,5 +1,6 @@
 # -*- encoding: utf-8 -*-
 import datetime
+import json
 import numpy as np
 
 def _now():
@@ -11,4 +12,4 @@ def expand_array(arr, dest_length):
     ans = np.zeros((dest_length))
     ans[0:len(arr)] = np.array(arr)
     return ans
-    
+

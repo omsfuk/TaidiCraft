@@ -1,4 +1,6 @@
 train_data_sample.json
+submit_sample.json
+test_data_sample.json
 word.index
 npy/
 __pycache__/
