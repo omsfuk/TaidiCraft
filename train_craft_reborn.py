@@ -8,6 +8,7 @@ import time
 import os
 import datetime
 import gensim
+import pickle
 from text_cnn_craft import TextCNN
 from lib_craft import _now
 from lib_craft import expand_array 
@@ -40,7 +41,7 @@ tf.flags.DEFINE_integer("embedding_size", 256, "embedding size")
 tf.flags.DEFINE_string("filter_sizes", "3, 4, 5", "filter sizes")
 tf.flags.DEFINE_integer("filter_num", 128, "filternum")
 tf.flags.DEFINE_float("dev_sample_percentage", 0.2, "测试集比例")
-tf.flags.DEFINE_integer("evaluate_every", 100, "两次评估间隔")
+tf.flags.DEFINE_integer("evaluate_every", 50, "两次评估间隔")
 tf.flags.DEFINE_integer("word_precess_every", 5000, "单词处理信息打印间隔")
 tf.flags.DEFINE_integer("used_sample", 6400, "限制样本实际利用大小。当为None时为无限制")
 tf.flags.DEFINE_integer("num_checkpoints", 5, "检查点数量")
@@ -57,8 +58,6 @@ def get_sample_size():
     with open('train_data_sample.json', 'r', encoding='utf-8') as f:
         json_obj = json.load(f)
     return len([1 for qa in json_obj for ans in qa['passages']])
-
-
 
 """
 词序列到向量
@@ -81,7 +80,7 @@ def convert_to_word_vector(senquence, dest_length):
             ans.append(index)
     ans = expand_array(ans, dest_length=dest_length)
     return np.array(ans)
-
+ 
 """
 初始化sample && 词向量。json => list
 """
@@ -123,6 +122,7 @@ def init(end_pos=100000000):
     res = np.array(res)
     return (total_sample, valid_sample, res)
 
+
 """
 生成训练数据。分批生成，节约Menory。假定样本书不超过1 * 10^^8
 """
@@ -147,13 +147,16 @@ def batch_iter(data, batch_size, epoch_num, shuffle=True):
                         convert_to_word_vector(answer, FLAGS.max_answer_length)))
             yield np.array(res)
 
+   
 print("[%s] getting extract statistics..." % _now())
 embeddingW.append(np.zeros((FLAGS.embedding_size)))
-total_sample, valid_sample, text_data = init(FLAGS.used_sample)
+total_sample, valid_sample, text_data = init(FLAGS.used_sample if FLAGS.used_sample is not None else 100000000)
 dev_sample_index = -1 * int(FLAGS.dev_sample_percentage * float(valid_sample))
 data_train, data_dev = text_data[:dev_sample_index], text_data[dev_sample_index:]
 for _ in batch_iter(text_data, FLAGS.batch_size, FLAGS.epoch_num):
     continue
+with open("word.index", "wb") as f:
+    pickle.dump(dic, f)
 
 print("total_sample:\t\t %d" % FLAGS.used_sample if FLAGS.used_sample is not None else total_sample)
 print("valid_sample:t\t %d" % valid_sample)
@@ -176,7 +179,7 @@ with tf.Graph().as_default():
                     num_filters=FLAGS.filter_num,
                     classes_num=2,
                     filter_sizes=list(map(int, FLAGS.filter_sizes.split(","))),
-                    embeddingW=np.array(embeddingW))
+                    embeddingW=np.array(embeddingW).astype(np.float32))
 
         # Define Training procedure
         global_step = tf.Variable(0, name="global_step", trainable=False)
@@ -213,6 +216,7 @@ with tf.Graph().as_default():
         dev_summary_dir = os.path.join(out_dir, "summaries", "dev")
         dev_summary_writer = tf.summary.FileWriter(dev_summary_dir, sess.graph)
 
+
         # Checkpoint directory. Tensorflow assumes this directory already exists so we need to create it
         checkpoint_dir = os.path.abspath(os.path.join(out_dir, "checkpoints"))
         checkpoint_prefix = os.path.join(checkpoint_dir, "model")
@@ -248,7 +252,7 @@ with tf.Graph().as_default():
             }
             step, summaries, loss, accuracy = sess.run(
                     [global_step, dev_summary_op, cnn.loss, cnn.accuracy], feed_dict)
-            dev_summary_writer.add_summary(summaries, step)
+            # dev_summary_writer.add_summary(summaries, step)
             time_str = datetime.datetime.now().isoformat()
             print("{}: step {}, loss {:g}, acc {:g}".format(time_str, step, loss, accuracy))
             return (loss, accuracy)
@@ -262,13 +266,17 @@ with tf.Graph().as_default():
             current_step = tf.train.global_step(sess, global_step)
             if current_step % FLAGS.evaluate_every == 0:
                 print("\nEvaluation:")
+                summary = tf.Summary()
                 dev_batchs = batch_iter(data_dev, FLAGS.batch_size, 1)
                 ans = []
                 for dev_batch in dev_batchs:
                     labels, questions, answers = zip(*dev_batch)
                     ans.append(dev_step(labels=np.array(labels), questions=np.array(questions), answers=np.array(answers)))
                 ans = np.average(ans, axis=0)
-                print("loss {:g}, acc {:g}".format(ans.tolist()[0], ans.tolist()[1]))
+                summary.value.add(tag="loss", simple_value=ans.tolist()[0])
+                summary.value.add(tag="Accuracy", simple_value=ans.tolist()[1])
+                dev_summary_writer.add_summary(summary, current_step)
+                print("{} loss {:g}, acc {:g}".format(_now(), ans.tolist()[0], ans.tolist()[1]))
                 print("")
             if current_step % FLAGS.checkpoint_every == 0:
                 path = saver.save(sess, checkpoint_prefix, global_step=current_step)

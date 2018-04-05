@@ -101,13 +101,16 @@ class TextCNN(object):
             return tf.divide(x3_x4, tf.multiply(x3_norm, x4_norm))
 
         with tf.name_scope("full-connected"):
-            W = tf.Variable(tf.truncated_normal([num_filters_total, classes_num], stddev=0.1), name="W")
-            b = tf.Variable(tf.constant(0.1, shape=[classes_num]), name="b")
+            W = tf.Variable(tf.truncated_normal([num_filters_total, 128], stddev=0.1), name="W")
+            b = tf.Variable(tf.constant(0.1, shape=[128]), name="b")
             self.question_outputs = tf.matmul(self.question_pool_flat, W, name="question_outputs") + b
             self.answer_outputs = tf.matmul(self.answer_pool_flat, W, name="answer_outputs") + b
         with tf.name_scope("loss"):
-            self.loss=tf.reduce_mean(tf.nn.sigmoid_cross_entropy_with_logits(logits=tf.reshape(cosine(self.question_outputs, self.answer_outputs), [-1, 1]), labels=self.labels))
+            self.loss=tf.reduce_mean(tf.nn.sigmoid_cross_entropy_with_logits(
+                logits=tf.reshape(cosine(self.question_outputs, self.answer_outputs), [-1, 1]), 
+                labels=tf.cast(tf.reshape(tf.argmax(self.labels, 1), [-1, 1]), tf.float32)))
         with tf.name_scope("accuracy"):
-            self.a = tf.round(tf.sigmoid(tf.reshape(cosine(self.question_outputs, self.answer_outputs) ,[-1, 1])))
-            self.accuracy = tf.reduce_mean(tf.cast(tf.equal(self.a, self.labels), tf.float32))
+            self.predictions = tf.round(tf.sigmoid(tf.reshape(cosine(self.question_outputs, self.answer_outputs) ,[-1, 1])))
+            self.accuracy = tf.reduce_mean(tf.cast(tf.equal(self.predictions, 
+                tf.cast(tf.reshape(tf.argmax(self.labels, 1), [-1, 1]), tf.float32)), tf.float32))
 
