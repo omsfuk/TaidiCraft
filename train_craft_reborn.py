@@ -12,6 +12,7 @@ import pickle
 from text_cnn_craft import TextCNN
 from lib_craft import _now
 from lib_craft import expand_array 
+from lib_craft import balance_sample
 from tensorflow.python import debug as tf_debug
 
 # 正文匹配，过滤特殊字符
@@ -84,7 +85,7 @@ def convert_to_word_vector(senquence, dest_length):
 """
 初始化sample && 词向量。json => list
 """
-def init(end_pos=100000000):
+def init(end_pos=100000000, enable_balance_sample=True):
     res = []
     valid_sample = 0
     total_sample = 0
@@ -119,8 +120,9 @@ def init(end_pos=100000000):
             else:
                 label = [0, 1]
             res.append((label, question_seg, answer_seg))
-    res = np.array(res)
-    return (total_sample, valid_sample, res)
+    if enable_balance_sample:
+        balance_sample(res)
+    return (total_sample, valid_sample, np.array(res))
 
 
 """
