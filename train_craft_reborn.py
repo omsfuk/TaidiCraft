@@ -1,4 +1,27 @@
 # -*- encoding: utf-8 -*-
+# -------Dragon be here!----------/
+#　　　　　　　　┏┓　　　┏┓+ +
+#　　　　　　　┏┛┻━━━┛┻┓ + +
+#　　　　　　　┃　　　　　　　┃ 　
+#　　　　　　　┃　　　━　　　┃ ++ + + +
+#　　　　　　 ████━████ ┃+
+#　　　　　　　┃　　　　　　　┃ +
+#　　　　　　　┃　　　┻　　　┃
+#　　　　　　　┃　　　　　　　┃ + +
+#　　　　　　　┗━┓　　　┏━┛
+#　　　　　　　　　┃　　　┃　　　　　　　　　　　
+#　　　　　　　　　┃　　　┃ + + + +
+#　　　　　　　　　┃　　　┃　　　　Code is far away from bug with the animal protecting　　　　　　　
+#　　　　　　　　　┃　　　┃ + 　　　　神兽保佑,代码无bug　　
+#　　　　　　　　　┃　　　┃
+#　　　　　　　　　┃　　　┃　　+　　　　　　　　　
+#　　　　　　　　　┃　 　　┗━━━┓ + +
+#　　　　　　　　　┃ 　　　　　　　┣┓
+#　　　　　　　　　┃ 　　　　　　　┏┛
+#　　　　　　　　　┗┓┓┏━┳┓┏┛ + + + +
+#　　　　　　　　　　┃┫┫　┃┫┫
+#　　　　　　　　　　┗┻┛　┗┻┛+ + + +
+#━━━━━━神兽出没━━━━━━
 import tensorflow as tf
 import json
 import jieba
@@ -33,7 +56,7 @@ embeddingW = []
 
 # 常量定义
 tf.flags.DEFINE_integer("batch_size", 64, "数据集大小")
-tf.flags.DEFINE_integer("epoch_num", 20, "迭代次数")
+tf.flags.DEFINE_integer("epoch_num", 100, "迭代次数")
 tf.flags.DEFINE_integer("max_question_length", 50, "最大问题长度")
 tf.flags.DEFINE_integer("min_question_length", 2, "最小问题长度")
 tf.flags.DEFINE_integer("max_answer_length", 64, "最大答案长度")
@@ -44,7 +67,7 @@ tf.flags.DEFINE_integer("filter_num", 128, "filternum")
 tf.flags.DEFINE_float("dev_sample_percentage", 0.2, "测试集比例")
 tf.flags.DEFINE_integer("evaluate_every", 50, "两次评估间隔")
 tf.flags.DEFINE_integer("word_precess_every", 5000, "单词处理信息打印间隔")
-tf.flags.DEFINE_integer("used_sample", 32000, "限制样本实际利用大小。当为None时为无限制")
+tf.flags.DEFINE_integer("used_sample", 6400, "限制样本实际利用大小。当为None时为无限制")
 tf.flags.DEFINE_integer("num_checkpoints", 5, "检查点数量")
 tf.flags.DEFINE_integer("checkpoint_every", 100, "检查点周期")
 tf.flags.DEFINE_boolean("allow_soft_placement", True, "Allow device soft device placement")
@@ -231,6 +254,7 @@ with tf.Graph().as_default():
 
         # Initialize all variables
         sess.run(tf.global_variables_initializer())
+        sess.run(tf.initialize_local_variables()) # try commenting this line and you'll get the error
 
         def train_step(labels, questions, answers):
             # A single training step
@@ -256,7 +280,7 @@ with tf.Graph().as_default():
                 cnn.labels: labels
             }
             step, summaries, loss, accuracy = sess.run(
-                    [global_step, dev_summary_op, cnn.loss, cnn.accuracy], feed_dict)
+                    [global_step, dev_summary_op, cnn.loss, cnn.eval_accuracy], feed_dict)
             # dev_summary_writer.add_summary(summaries, step)
             time_str = datetime.datetime.now().isoformat()
             print("{}: step {}, loss {:g}, acc {:g}".format(time_str, step, loss, accuracy))

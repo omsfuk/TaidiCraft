@@ -26,8 +26,8 @@ tf.flags.DEFINE_integer("min_answer_length", 5, "最小答案长度")
 
 # Eval Parameters
 tf.flags.DEFINE_integer("batch_size", 64, "Batch Size (default: 64)")
-tf.flags.DEFINE_string("checkpoint_dir", "runs/1522913279/checkpoints", "Checkpoint directory from training run")
 tf.flags.DEFINE_boolean("eval_train", False, "Evaluate on all training data")
+tf.flags.DEFINE_string("checkpoint_dir", "runs/1522929860/checkpoints", "Checkpoint directory from training run")
 
 # Misc Parameters
 tf.flags.DEFINE_boolean("allow_soft_placement", True, "Allow device soft device placement")
@@ -124,24 +124,10 @@ def batch_iter(data, batch_size, epoch_num, shuffle=True):
                             convert_to_word_vector(answer, FLAGS.max_answer_length)))
             yield np.array(res)
 
-# CHANGE THIS: Load data. Load your own data here
-"""
-if FLAGS.eval_train:
-    x_raw, y_test = data_helpers.load_data_and_labels(FLAGS.positive_data_file, FLAGS.negative_data_file)
-    y_test = np.argmax(y_test, axis=1)
-else:
-    x_raw = ["a masterpiece four years in the making", "everything is off."]
-    y_test = [1, 0]
-"""
-
-total_sample, valid_sample, text_data = init(1600)
-
-# Map data into vocabulary
-"""
-vocab_path = os.path.join(FLAGS.checkpoint_dir, "..", "vocab")
-vocab_processor = learn.preprocessing.VocabularyProcessor.restore(vocab_path)
-x_test = np.array(list(vocab_processor.transform(x_raw)))
-"""
+manual_input = True
+if manual_input == False:
+    # CHANGE THIS: Load data. Load your own data here
+    total_sample, valid_sample, text_data = init(1600)
 
 print("\nEvaluating...\n")
 
@@ -168,25 +154,33 @@ with graph.as_default():
         # Tensors we want to evaluate
         predictions = graph.get_operation_by_name("output/predictions").outputs[0]
 
-        # Generate batches for one epoch
-        batches = batch_iter(text_data, FLAGS.batch_size, 1, shuffle=False)
-
         # Collect the predictions here
         all_predictions = []
         ids = []
         scores = []
-
-        for i, batch in enumerate(batches):
-            id, questions, answers = zip(*batch)
-            batch_predictions = sess.run(predictions, {input_questions: questions, input_answers: answers})
-            all_predictions = np.concatenate([all_predictions, batch_predictions])
-            ids = ids + np.array(id).tolist()
-            print("[{}] {{i}} batch_size: {}  accuracy: {}".format(_now(), i, len(questions)))
-            """
-            acc = np.average(np.equal(batch_predictions, np.argmax(labels, 1)).astype(np.float32))
-            print("batch_size: {}  accuracy: {}".format(len(labels), acc))
-            scores.append(acc)
-            """
+        if manual_input == True:
+            while True:
+                question = input("Question")
+                answer = input("Answer")
+                question_seg = jieba.lcut(question, cut_all=False)
+                answer_seg = jieba.lcut(answer, cut_all=False)
+                question_vec = convert_to_word_vector(question_seg, 50)
+                answer_vec = convert_to_word_vector(answer_seg, 64)
+                print(sess.run(predictions, {input_questions: [question_vec], input_answers: [answer_vec]}))
+        else:
+            # Generate batches for one epoch
+            batches = batch_iter(text_data, FLAGS.batch_size, 1, shuffle=False)
+            for i, batch in enumerate(batches):
+                id, questions, answers = zip(*batch)
+                batch_predictions = sess.run(predictions, {input_questions: questions, input_answers: answers})
+                all_predictions = np.concatenate([all_predictions, batch_predictions])
+                ids = ids + np.array(id).tolist()
+                print("[{}] {{i}} batch_size: {}  accuracy: {}".format(_now(), i, len(questions)))
+                """
+                acc = np.average(np.equal(batch_predictions, np.argmax(labels, 1)).astype(np.float32))
+                print("batch_size: {}  accuracy: {}".format(len(labels), acc))
+                scores.append(acc)
+                """
 """
 # Print accuracy if y_test is defined
 if y_test is not None:

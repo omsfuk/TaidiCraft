@@ -1,4 +1,28 @@
 # -*- encoding: utf-8 -*-
+#
+#                       _oo0oo_
+#                      o8888888o
+#                      88" . "88
+#                      (| -_- |)
+#                      0\  =  /0
+#                    ___/`---'\___
+#                  .' \\|     |// '.
+#                 / \\|||  :  |||// \
+#                / _||||| -:- |||||- \
+#               |   | \\\  -  /// |   |
+#               | \_|  ''\---/''  |_/ |
+#               \  .-\__  '-'  ___/-. /
+#             ___'. .'  /--.--\  `. .'___
+#          ."" '<  `.___\_<|>_/___.' >' "".
+#         | | :  `- \`.;`\ _ /`;.`/ - ` : | |
+#         \  \ `_.   \_ __\ /__ _/   .-` /  /
+#     =====`-.____`.___ \_____/___.-`___.-'=====
+#                       `=---='
+#
+#
+#     ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+#
+#               佛祖保佑         永无BUG
 import tensorflow as tf
 import numpy as np
 
@@ -78,5 +102,7 @@ class TextCNN(object):
         with tf.name_scope("loss"):
             self.loss=tf.reduce_mean(tf.nn.softmax_cross_entropy_with_logits(logits=self.text_outputs, labels=self.labels))
         with tf.name_scope("accuracy"):
-            self.accuracy = tf.reduce_mean(tf.cast(tf.equal(self.predictions, tf.argmax(self.labels, 1)), tf.float32))
+            # self.accuracy = tf.reduce_mean(tf.cast(tf.equal(self.predictions, tf.argmax(self.labels, 1)), tf.float32))
+            self.accuracy = tf.metrics.auc(self.predictions, tf.argmax(self.labels, 1))[1]
+            self.eval_accuracy = tf.metrics.auc(self.predictions, tf.argmax(self.labels, 1))[1]
 
