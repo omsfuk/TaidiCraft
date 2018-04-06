@@ -38,10 +38,26 @@ from lib_craft import expand_array
 from lib_craft import balance_sample
 from tensorflow.python import debug as tf_debug
 
+# jieba初始化
+jieba.initialize()
+
 # 正文匹配，过滤特殊字符
 pattern = re.compile(r'[\u4e00-\u9fa5_a-zA-Z0-9１２３４５６７８９０]')
+
 # 索引词典
-dic = {"$$zero$$": 0}
+if os.path.isfile("word.index"):
+    with open("word.index", "rb") as f:
+        dic = pickle.load(f)
+else:
+    print("[Confirm] Can't find word.index, create new?[Y/N]")
+    confirm = input()
+    if confirm == 'Y':
+        dic = {"$$zero$$": 0}
+    elif confirm == 'N':
+        raise SystemExit('User choose to terminate the program')
+    else:
+        raise SystemExit('[Error] Invalid input')
+
 # word2vec model
 print("[%s] loading word2vec model..." % _now())
 model = gensim.models.Word2Vec.load('npy/word2vec_wx')
@@ -64,6 +80,10 @@ tf.flags.DEFINE_integer("min_answer_length", 5, "最小答案长度")
 tf.flags.DEFINE_integer("embedding_size", 256, "embedding size")
 tf.flags.DEFINE_string("filter_sizes", "3, 4, 5", "filter sizes")
 tf.flags.DEFINE_integer("filter_num", 128, "filternum")
+
+tf.flags.DEFINE_float("dropout_keep_prob", 0.5, "dropout")
+tf.flags.DEFINE_float("l2_reg_lambda", 0.0, "L2 regularization lambda (default: 0.0)")
+
 tf.flags.DEFINE_float("dev_sample_percentage", 0.2, "测试集比例")
 tf.flags.DEFINE_integer("evaluate_every", 50, "两次评估间隔")
 tf.flags.DEFINE_integer("word_precess_every", 5000, "单词处理信息打印间隔")
@@ -79,7 +99,7 @@ FLAGS = tf.flags.FLAGS
 获得样本大小
 """
 def get_sample_size():
-    with open('train_data_sample.json', 'r', encoding='utf-8') as f:
+    with open('mini_sample.json', 'r', encoding='utf-8') as f:
         json_obj = json.load(f)
     return len([1 for qa in json_obj for ans in qa['passages']])
 
@@ -96,14 +116,23 @@ def convert_to_word_vector(senquence, dest_length):
         else:
             index = len(dic)
             dic[word] = index
-            if word not in model.wv.vocab:
-                vector = np.random.rand(FLAGS.embedding_size)
-            else:
-                vector = np.array(model[word])
-            embeddingW.append(vector)
             ans.append(index)
     ans = expand_array(ans, dest_length=dest_length)
     return np.array(ans)
+
+"""
+构建embeddingW词典
+"""
+def construct_embeddingW(dic):
+    ordered_dic = sorted(dic.items(), key=lambda x: x[1])
+    ans = []
+    for item in ordered_dic:
+        word = item[1]
+        if word in model.wv.vocab:
+            ans.append(model[word])
+        else:
+            ans.append(np.random.rand(FLAGS.embedding_size))
+    return ans
  
 """
 初始化sample && 词向量。json => list
@@ -143,7 +172,7 @@ def init(end_pos=100000000, enable_balance_sample=True):
             else:
                 label = [0, 1]
             res.append((label, question_seg, answer_seg))
-    if enable_balance_sample:
+    if enable_balance_sample == True:
         res = balance_sample(res)
         shuffle_indices = np.random.permutation(np.arange(len(res)))
         res = res[shuffle_indices]
@@ -178,13 +207,22 @@ def batch_iter(data, batch_size, epoch_num, shuffle=True):
    
 print("[%s] getting extract statistics..." % _now())
 embeddingW.append(np.zeros((FLAGS.embedding_size)))
-total_sample, valid_sample, text_data = init(FLAGS.used_sample if FLAGS.used_sample is not None else 100000000)
+total_sample, valid_sample, text_data = init(end_pos=FLAGS.used_sample if FLAGS.used_sample is not None else 100000000, enable_balance_sample=False)
+
 dev_sample_index = -1 * int(FLAGS.dev_sample_percentage * float(valid_sample))
 data_train, data_dev = text_data[:dev_sample_index], text_data[dev_sample_index:]
 for _ in batch_iter(text_data, FLAGS.batch_size, FLAGS.epoch_num):
     continue
+
+# 构建embeddingW
+print("[{}] constructing embedding matrix....".format(_now()))
+embeddingW = construct_embeddingW(dic)
+
+# 索引词典持久化。一旦中断，后果十分严重
+print("[{}] [Warning] Please don't terminate program before you see 'Dictonary Persistence Done'!!!!!".format(_now()))
 with open("word.index", "wb") as f:
     pickle.dump(dic, f)
+print("[{}] Dictonary Persistence Done.".format(_now()))
 
 print("total_sample:\t\t %d" % FLAGS.used_sample if FLAGS.used_sample is not None else total_sample)
 print("valid_sample:\t\t %d" % valid_sample)
@@ -197,15 +235,15 @@ with tf.Graph().as_default():
       allow_soft_placement=FLAGS.allow_soft_placement,
       log_device_placement=FLAGS.log_device_placement)
     sess = tf.Session(config=session_conf)
-    # with sess:
     with sess.as_default():
-        # sess = tf_debug.LocalCLIDebugWrapperSession(sess=sess)
         cnn = TextCNN(vocab_size=len(dic),
                     question_length=FLAGS.max_question_length,
                     answer_length=FLAGS.max_answer_length,
                     embedding_size=FLAGS.embedding_size,
                     num_filters=FLAGS.filter_num,
                     classes_num=2,
+                    l2_reg_lambda=FLAGS.l2_reg_lambda,
+                    dropout_keep_prob=FLAGS.dropout_keep_prob,
                     filter_sizes=list(map(int, FLAGS.filter_sizes.split(","))),
                     embeddingW=np.array(embeddingW).astype(np.float32))
 
@@ -254,7 +292,8 @@ with tf.Graph().as_default():
 
         # Initialize all variables
         sess.run(tf.global_variables_initializer())
-        sess.run(tf.initialize_local_variables()) # try commenting this line and you'll get the error
+        sess.run(tf.local_variables_initializer())
+        # sess.run(tf.initialize_local_variables()) # try commenting this line and you'll get the error
 
         def train_step(labels, questions, answers):
             # A single training step
@@ -280,7 +319,7 @@ with tf.Graph().as_default():
                 cnn.labels: labels
             }
             step, summaries, loss, accuracy = sess.run(
-                    [global_step, dev_summary_op, cnn.loss, cnn.eval_accuracy], feed_dict)
+                    [global_step, dev_summary_op, cnn.loss, cnn.accuracy], feed_dict)
             # dev_summary_writer.add_summary(summaries, step)
             time_str = datetime.datetime.now().isoformat()
             print("{}: step {}, loss {:g}, acc {:g}".format(time_str, step, loss, accuracy))

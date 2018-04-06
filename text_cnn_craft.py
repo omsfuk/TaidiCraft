@@ -34,13 +34,17 @@ class TextCNN(object):
     """
     def __init__(
       self, vocab_size, question_length, answer_length,
-      embedding_size, classes_num, num_filters, filter_sizes, embeddingW=None):
+      embedding_size, classes_num, num_filters, filter_sizes, dropout_keep_prob, l2_reg_lambda, embeddingW=None):
         # Placeholders for input, output and dropout
 
         self.questions = tf.placeholder(tf.int32, [None, question_length], name="questions")
         self.answers = tf.placeholder(tf.int32, [None, answer_length], name="answers")
         self.labels = tf.placeholder(tf.float32, [None, classes_num], name="labels")
-        
+        self.dropout_keep_prob = tf.placeholder(tf.float32, name="dropout_keep_prob")
+
+        # Keeping track of l2 regularization loss (optional)
+        l2_loss = tf.constant(0.0)
+
         text_length = question_length + answer_length
         self.text = tf.concat((self.questions, self.answers), axis=1)
         
@@ -62,7 +66,7 @@ class TextCNN(object):
             with tf.name_scope("text-conv-maxpool-%s" % filter_size):
                 # Convolution Layer
                 filter_shape = [filter_size, embedding_size, 1, num_filters]
-                W2= tf.Variable(tf.truncated_normal(filter_shape, stddev=0.1), name="W2")
+                W2 = tf.Variable(tf.truncated_normal(filter_shape, stddev=0.1), name="W2")
                 b2 = tf.Variable(tf.constant(0.1, shape=[num_filters]), name="b2")
                 conv2 = tf.nn.conv2d(
                     self.textEmbedding_expanded,
@@ -94,15 +98,20 @@ class TextCNN(object):
             x3_x4 = tf.reduce_sum(tf.multiply(x3, x4), axis=1)
             return tf.divide(x3_x4, tf.multiply(x3_norm, x4_norm))
 
+        with tf.name_scope("dropout"):
+            self.text_drop = tf.nn.dropout(self.text_pool_flat, self.dropout_keep_prob)
+
         with tf.name_scope("output"):
             W = tf.Variable(tf.truncated_normal([num_filters_total, classes_num], stddev=0.1), name="W")
             b = tf.Variable(tf.constant(0.1, shape=[classes_num]), name="b")
+            l2_loss += tf.nn.l2_loss(W)
+            l2_loss += tf.nn.l2_loss(b)
             self.text_outputs = tf.matmul(self.text_pool_flat, W) + b
             self.predictions = tf.argmax(self.text_outputs, 1, "predictions")
         with tf.name_scope("loss"):
-            self.loss=tf.reduce_mean(tf.nn.softmax_cross_entropy_with_logits(logits=self.text_outputs, labels=self.labels))
+            self.loss=tf.reduce_mean(tf.nn.softmax_cross_entropy_with_logits_v2(logits=self.text_outputs, labels=self.labels)) + l2_reg_lambda * l2_loss
         with tf.name_scope("accuracy"):
-            # self.accuracy = tf.reduce_mean(tf.cast(tf.equal(self.predictions, tf.argmax(self.labels, 1)), tf.float32))
-            self.accuracy = tf.metrics.auc(self.predictions, tf.argmax(self.labels, 1))[1]
+            self.accuracy = tf.reduce_mean(tf.cast(tf.equal(self.predictions, tf.argmax(self.labels, 1)), tf.float32))
+            # self.accuracy = tf.metrics.auc(self.predictions, tf.argmax(self.labels, 1))[1]
             self.eval_accuracy = tf.metrics.auc(self.predictions, tf.argmax(self.labels, 1))[1]
 

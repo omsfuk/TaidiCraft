@@ -36,12 +36,8 @@ tf.flags.DEFINE_boolean("log_device_placement", False, "Log placement of ops on 
 
 FLAGS = tf.flags.FLAGS
 
-if os.path.isfile("word.index"):
-    with open("word.index", "rb") as f:
-        dic = pickle.load(f)
-else:
-    raise SystemExit("[Error] Can't find word.index")
-
+with open("word.index", "rb") as f:
+    dic = pickle.load(f)
 pattern = re.compile(r'[\u4e00-\u9fa5_a-zA-Z0-9１２３４５６７８９０]')
 punct = set(u'''#ㄍ <>/\\[]:!)］∫,.:;?]}¢'"、。〉》」』】〕〗〞︰︱︳﹐､﹒
         ﹔﹕﹖﹗﹚﹜﹞！），．：；？｜｝︴︶︸︺︼︾﹀﹂﹄﹏､～￠
@@ -70,7 +66,7 @@ def init(end_pos=100000000):
     res = []
     valid_sample = 0
     total_sample = 0
-    with open('test_data_sample.json', 'r',encoding='utf-8') as f:
+    with open('mini_sample.json', 'r',encoding='utf-8') as f:
         json_obj = json.load(f)
     line_count = 0
     for qa in json_obj:
@@ -95,14 +91,12 @@ def init(end_pos=100000000):
             # 答案长度过滤
             if len(answer_seg) > FLAGS.max_answer_length or len(answer_seg) < FLAGS.min_question_length:
                 continue
-            """
             if ans['label'] == 0:
                 label = [1, 0] 
             else:
                 label = [0, 1]
-            """
             valid_sample = valid_sample + 1
-            res.append(([ans['passage_id']], question_seg, answer_seg))
+            res.append((label, [ans['passage_id']], question_seg, answer_seg))
     return (total_sample, valid_sample, np.array(res))
 
 """
@@ -123,12 +117,12 @@ def batch_iter(data, batch_size, epoch_num, shuffle=True):
             start_index = batch_num * batch_size
             end_index = min((batch_num + 1) * batch_size, data_size)
             res = []
-            for id, question, answer in shuffled_data[start_index:end_index]:
-                res.append((id, convert_to_word_vector(question, FLAGS.max_question_length),
+            for label, id, question, answer in shuffled_data[start_index:end_index]:
+                res.append((label, id, convert_to_word_vector(question, FLAGS.max_question_length),
                             convert_to_word_vector(answer, FLAGS.max_answer_length)))
             yield np.array(res)
 
-manual_input = True
+manual_input = False
 if manual_input == False:
     # CHANGE THIS: Load data. Load your own data here
     total_sample, valid_sample, text_data = init(1600)
@@ -175,24 +169,16 @@ with graph.as_default():
             # Generate batches for one epoch
             batches = batch_iter(text_data, FLAGS.batch_size, 1, shuffle=False)
             for i, batch in enumerate(batches):
-                id, questions, answers = zip(*batch)
+                labels, id, questions, answers = zip(*batch)
                 batch_predictions = sess.run(predictions, {input_questions: questions, input_answers: answers})
                 all_predictions = np.concatenate([all_predictions, batch_predictions])
                 ids = ids + np.array(id).tolist()
                 print("[{}] {{i}} batch_size: {}  accuracy: {}".format(_now(), i, len(questions)))
-                """
                 acc = np.average(np.equal(batch_predictions, np.argmax(labels, 1)).astype(np.float32))
                 print("batch_size: {}  accuracy: {}".format(len(labels), acc))
                 scores.append(acc)
-                """
-"""
-# Print accuracy if y_test is defined
-if y_test is not None:
-    correct_predictions = float(sum(all_predictions == y_test))
-    print("Total number of test examples: {}".format(len(y_test)))
-    print("Accuracy: {:g}".format(correct_predictions/float(len(y_test))))
-"""
-# print("Accuracy: {}".format(np.average(scores)))
+
+print("Accuracy: {}".format(np.average(scores)))
 
 # Save the evaluation to a csv
 predictions_human_readable = np.column_stack((np.array(ids), all_predictions))
