@@ -5,12 +5,15 @@ import gensim
 import csv
 import codecs
 import re
+import sys
 from gensim.models import word2vec
+
+input_file = sys.argv[1]
 
 dic = {}
 model = gensim.models.Word2Vec.load('./npy/word2vec_wx')
 
-with open('mini_sample.json', 'r') as f:
+with open(input_file, 'r') as f:
     obj = json.load(f)
 
 positive_sample = 0
@@ -49,9 +52,11 @@ def process(sequence, axis):
                 missing_word = missing_word + 1
         else:
             dic[seg] += 1
+total_sample = 0
 for qa in obj:
     process(qa['question'], True)
     for ans in qa['passages']:
+        total_sample += 1
         if ans['label'] == 1:
             process(ans['content'], False)
             positive_sample = positive_sample + 1
@@ -64,6 +69,7 @@ def dict2csv(dic):
 
 dict2csv(dic)
 
+print("total sample    {}".format(total_sample))
 print("positive sample {}".format(positive_sample))
 print("negative sample {}".format(negative_sample))
 print("total word      {}".format(len(dic)))

@@ -45,7 +45,12 @@ jieba.initialize()
 p = re.compile(r'[\u4e00-\u9fa5_a-zA-Z0-9]+')
 
 # 索引词典
-dic = {"$$zero$$": 0}
+# dic = {"$$zero$$": 0}
+if os.path.isfile("word.index"):
+    with open("word.index", "rb") as f:
+        dic = pickle.load(f)
+else:
+    raise SystemExit("Can't find word.index")
 
 # word2vec model
 print("[%s] loading word2vec model..." % _now())
@@ -61,8 +66,8 @@ embeddingW = []
 # 有效数据条数
 
 # 常量定义
-tf.flags.DEFINE_string("train_file", "train_data_sample.json", "文件名")
-tf.flags.DEFINE_string("test_file", "testing.json", "文件名")
+tf.flags.DEFINE_string("train_file", "train_data_complete_10000_2_2.json", "文件名")
+tf.flags.DEFINE_string("test_file", "unbalance_testing_4000.json", "文件名")
 tf.flags.DEFINE_integer("batch_size", 64, "数据集大小")
 tf.flags.DEFINE_integer("epoch_num", 100, "迭代次数")
 tf.flags.DEFINE_integer("max_question_length", 50, "最大问题长度")
@@ -201,9 +206,9 @@ data_train, data_dev = text_data[:dev_sample_index], text_data[dev_sample_index:
 """
  
 print("[{}] getting statistics...".format(_now()))
-total_sample, valid_sample, text_data = init(FLAGS.train_file, end_pos=FLAGS.used_sample if FLAGS.used_sample is not None else 100000000, enable_balance_sample=True)
+total_sample, valid_sample, text_data = init(FLAGS.train_file, end_pos=FLAGS.used_sample if FLAGS.used_sample is not None else 100000000, enable_balance_sample=False)
 
-_, _, data_dev = init(FLAGS.test_file, end_pos=3200, enable_balance_sample=True)
+_, _, data_dev = init(FLAGS.test_file, end_pos=1000000, enable_balance_sample=True)
 data_train = text_data
 
 dev_sample_index = -1 * int(FLAGS.dev_sample_percentage * float(valid_sample))
