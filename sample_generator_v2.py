@@ -14,7 +14,7 @@ output_file = "{}_{}_{}_{}.json".format(os.path.splitext(input_file)[0], questio
 ratio = pos_limit / neg_limit
 question_length = 128
 answer_length = 64
-p = re.compile('[\u4e00-\u9fa50-9a-zA-Z]')
+p = re.compile('[\u4e00-\u9fa50-9a-zA-Z]+')
 
 print("question count: {}".format(question_limit))
 print("pos_limit:      {}".format(pos_limit))
@@ -46,7 +46,7 @@ for q in q_list:
         break
     q_count += 1
     for a in q['passages']:
-        if len([1 for _ in filter(lambda x: p.match(x), jieba.lcut(a['content'], cut_all=False))]) > question_length:
+        if len([1 for _ in filter(lambda x: p.match(x), jieba.lcut(a['content'], cut_all=False))]) > answer_length:
             continue
         if a['label'] == 1:
             pos.append(a)

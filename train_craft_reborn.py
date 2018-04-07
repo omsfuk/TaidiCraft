@@ -42,7 +42,7 @@ from tensorflow.python import debug as tf_debug
 jieba.initialize()
 
 # 正文匹配，过滤特殊字符
-pattern = re.compile(r'[\u4e00-\u9fa5_a-zA-Z0-9１２３４５６７８９０]')
+p = re.compile(r'[\u4e00-\u9fa5_a-zA-Z0-9]+')
 
 # 索引词典
 dic = {"$$zero$$": 0}
@@ -55,7 +55,8 @@ punct = set(u'''#ㄍ <>/\\[]:!)］∫,.:;?]}¢'"、。〉》」』】〕〗〞�
         ﹔﹕﹖﹗﹚﹜﹞！），．：；？｜｝︴︶︸︺︼︾﹀﹂﹄﹏､～￠
         々‖•·ˇˉ―--′’”([{£¥'"‵〈《「『【〔〖（［｛￡￥〝︵︷︹︻
         ︽︿﹁﹃﹙﹛﹝（｛“‘-—_…... ''')
-filter_punt = lambda s: u''.join(filter(lambda x: True if pattern.match(x) and x not in punct else False , s))
+# filter_punt = lambda s: u''.join(filter(lambda x: True if pattern.match(x) and x not in punct else False , s))
+filter_punt = lambda s: p.match(s)
 embeddingW = []
 # 有效数据条数
 
@@ -129,7 +130,7 @@ def init(filename, end_pos=100000000, enable_balance_sample=True):
     line_count = 0
     for qa in json_obj:
         question = qa['question']
-        question_seg = jieba.lcut(filter_punt(question), cut_all=False) # 问题 词序列
+        question_seg = [x for x in filter(filter_punt, jieba.lcut(question, cut_all=False))] # 问题 词序列
         # 问题长度过滤
         if len(question_seg) > FLAGS.max_question_length or len(question_seg) < FLAGS.min_question_length:
             continue
@@ -148,7 +149,7 @@ def init(filename, end_pos=100000000, enable_balance_sample=True):
             if line_count % 5000 == 0:
                 print("[{}] processing {} question/answer".format(_now(), line_count))
 
-            answer_seg = jieba.lcut(filter_punt(answer), cut_all=False) # 问题 词序列
+            answer_seg = [x for x in filter(filter_punt, jieba.lcut(answer, cut_all=False))] # 问题 词序列
             # 答案长度过滤
             if len(answer_seg) > FLAGS.max_answer_length or len(answer_seg) < FLAGS.min_question_length:
                 continue
