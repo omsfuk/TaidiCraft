@@ -45,18 +45,7 @@ jieba.initialize()
 pattern = re.compile(r'[\u4e00-\u9fa5_a-zA-Z0-9１２３４５６７８９０]')
 
 # 索引词典
-if os.path.isfile("word.index"):
-    with open("word.index", "rb") as f:
-        dic = pickle.load(f)
-else:
-    print("[Confirm] Can't find word.index, create new?[Y/N]")
-    confirm = input()
-    if confirm == 'Y':
-        dic = {"$$zero$$": 0}
-    elif confirm == 'N':
-        raise SystemExit('User choose to terminate the program')
-    else:
-        raise SystemExit('[Error] Invalid input')
+dic = {"$$zero$$": 0}
 
 # word2vec model
 print("[%s] loading word2vec model..." % _now())
@@ -71,7 +60,8 @@ embeddingW = []
 # 有效数据条数
 
 # 常量定义
-tf.flags.DEFINE_string("filename", "training.json", "文件名")
+tf.flags.DEFINE_string("train_file", "train_data_sample.json", "文件名")
+tf.flags.DEFINE_string("test_file", "testing.json", "文件名")
 tf.flags.DEFINE_integer("batch_size", 64, "数据集大小")
 tf.flags.DEFINE_integer("epoch_num", 100, "迭代次数")
 tf.flags.DEFINE_integer("max_question_length", 50, "最大问题长度")
@@ -130,11 +120,11 @@ def construct_embeddingW(dic):
 """
 初始化sample && 词向量。json => list
 """
-def init(end_pos=100000000, enable_balance_sample=True):
+def init(filename, end_pos=100000000, enable_balance_sample=True):
     res = []
     valid_sample = 0
     total_sample = 0
-    with open(FLAGS.filename, 'r',encoding='utf-8') as f:
+    with open(filename, 'r',encoding='utf-8') as f:
         json_obj = json.load(f)
     line_count = 0
     for qa in json_obj:
@@ -144,16 +134,19 @@ def init(end_pos=100000000, enable_balance_sample=True):
         if len(question_seg) > FLAGS.max_question_length or len(question_seg) < FLAGS.min_question_length:
             continue
 
-        if line_count > end_pos:
-            break
+        # if line_count > end_pos:
+        #    break
 
         for ans in qa['passages']:
             total_sample = total_sample + 1
             # 样本数量限制
             answer = ans['content']
             line_count = line_count + 1
-            if line_count > end_pos:
-                break
+            # if line_count > end_pos:
+            #    break
+
+            if line_count % 5000 == 0:
+                print("[{}] processing {} question/answer".format(_now(), line_count))
 
             answer_seg = jieba.lcut(filter_punt(answer), cut_all=False) # 问题 词序列
             # 答案长度过滤
@@ -165,6 +158,8 @@ def init(end_pos=100000000, enable_balance_sample=True):
             else:
                 label = [0, 1]
             res.append((label, question_seg, answer_seg))
+
+    res = res[0:end_pos]
     if enable_balance_sample == True:
         res = balance_sample(res)
         shuffle_indices = np.random.permutation(np.arange(len(res)))
@@ -196,13 +191,27 @@ def batch_iter(data, batch_size, epoch_num, shuffle=True):
                         convert_to_word_vector(answer, FLAGS.max_answer_length)))
             yield np.array(res)
 
-   
-print("[%s] getting statistics..." % _now())
+"""   
+print("[{}] getting statistics...".format(_now()))
 total_sample, valid_sample, text_data = init(end_pos=FLAGS.used_sample if FLAGS.used_sample is not None else 100000000, enable_balance_sample=True)
 
 dev_sample_index = -1 * int(FLAGS.dev_sample_percentage * float(valid_sample))
 data_train, data_dev = text_data[:dev_sample_index], text_data[dev_sample_index:]
+"""
+ 
+print("[{}] getting statistics...".format(_now()))
+total_sample, valid_sample, text_data = init(FLAGS.train_file, end_pos=FLAGS.used_sample if FLAGS.used_sample is not None else 100000000, enable_balance_sample=True)
+
+_, _, data_dev = init(FLAGS.test_file, end_pos=3200, enable_balance_sample=True)
+data_train = text_data
+
+dev_sample_index = -1 * int(FLAGS.dev_sample_percentage * float(valid_sample))
+# data_train, data_dev = text_data[:dev_sample_index], text_data[dev_sample_index:]
+
 for _ in batch_iter(text_data, FLAGS.batch_size, FLAGS.epoch_num):
+    continue
+
+for _ in batch_iter(data_dev, FLAGS.batch_size, FLAGS.epoch_num):
     continue
 
 # 构建embeddingW
@@ -210,16 +219,22 @@ print("[{}] constructing embedding matrix....".format(_now()))
 embeddingW = construct_embeddingW(dic)
 
 # 索引词典持久化。一旦中断，后果十分严重
+timestamp = str(int(time.time()))
+os.makedirs(os.path.join(os.path.curdir, "runs", timestamp))
+out_dir = os.path.abspath(os.path.join(os.path.curdir, "runs", timestamp))
+    
 print("[{}] [Warning] Please don't terminate program before you see 'Dictonary Persistence Done'!!!!!".format(_now()))
-with open("word.index", "wb") as f:
+with open(os.path.join(out_dir, "word.index"), "wb") as f:
     pickle.dump(dic, f)
 print("[{}] Dictonary Persistence Done.".format(_now()))
 
 print("total_sample:\t\t %d" % FLAGS.used_sample if FLAGS.used_sample is not None else total_sample)
 print("valid_sample:\t\t %d" % valid_sample)
 print("dict_size:\t\t %d" % len(dic))
-print("train_sample:\t\t %d" % (valid_sample + dev_sample_index))
-print("dev_sample:\t\t %d" % (-dev_sample_index))
+print("train_sample:\t\t %d" % len(data_train))
+print("dev_sample:\t\t %d" % len(data_dev))
+
+# raise SystemExit("terminate")
 
 with tf.Graph().as_default():
     session_conf = tf.ConfigProto(
@@ -255,9 +270,9 @@ with tf.Graph().as_default():
         grad_summaries_merged = tf.summary.merge(grad_summaries)
 
         # Output directory for models and summaries
-        timestamp = str(int(time.time()))
-        out_dir = os.path.abspath(os.path.join(os.path.curdir, "runs", timestamp))
         print("Writing to {}\n".format(out_dir))
+
+
 
         # Summaries for loss and accuracy
         loss_summary = tf.summary.scalar("loss", cnn.loss)

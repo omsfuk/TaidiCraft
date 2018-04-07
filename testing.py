@@ -20,16 +20,16 @@ from tensorflow.contrib import learn
 # ==================================================
 
 # Data Parameters
+tf.flags.DEFINE_string("evaluate_file", "mini_sample.json", "最小答案长度")
 tf.flags.DEFINE_integer("max_question_length", 50, "最大问题长度")
 tf.flags.DEFINE_integer("min_question_length", 2, "最小问题长度")
 tf.flags.DEFINE_integer("max_answer_length", 64, "最大答案长度")
 tf.flags.DEFINE_integer("min_answer_length", 5, "最小答案长度")
-tf.flags.DEFINE_string("evaluate_file", "mini_sample.json", "最小答案长度")
 
 # Eval Parameters
 tf.flags.DEFINE_integer("batch_size", 64, "Batch Size (default: 64)")
 tf.flags.DEFINE_boolean("eval_train", False, "Evaluate on all training data")
-tf.flags.DEFINE_string("checkpoint_dir", "runs/1523068183/checkpoints", "Checkpoint directory from training run")
+tf.flags.DEFINE_string("checkpoint_dir", "runs/1523078160/checkpoints", "Checkpoint directory from training run")
 
 # Misc Parameters
 tf.flags.DEFINE_boolean("allow_soft_placement", True, "Allow device soft device placement")
@@ -38,7 +38,7 @@ tf.flags.DEFINE_boolean("log_device_placement", False, "Log placement of ops on 
 
 FLAGS = tf.flags.FLAGS
 
-with open("word.index", "rb") as f:
+with open(os.path.join(os.path.curdir, FLAGS.checkpoint_dir, "..", "word.index"), "rb") as f:
     dic = pickle.load(f)
 pattern = re.compile(r'[\u4e00-\u9fa5_a-zA-Z0-9１２３４５６７８９０]')
 punct = set(u'''#ㄍ <>/\\[]:!)］∫,.:;?]}¢'"、。〉》」』】〕〗〞︰︱︳﹐､﹒
@@ -225,6 +225,7 @@ with graph.as_default():
         all_predictions = []
         ids = []
         scores = []
+        all_labels = []
         if manual_input == True:
             while True:
                 question = input("Question")
@@ -236,11 +237,12 @@ with graph.as_default():
                 print(sess.run(predictions, {input_questions: [question_vec], input_answers: [answer_vec]}))
         else:
             # Generate batches for one epoch
-            batches = batch_iter(text_data, FLAGS.batch_size, 1, shuffle=False)
+            batches = batch_iter(text_data, FLAGS.batch_size, 1, shuffle=True)
             for i, batch in enumerate(batches):
                 labels, id, questions, answers = zip(*batch)
                 batch_predictions = sess.run(predictions, {input_questions: questions, input_answers: answers})
                 all_predictions = np.concatenate([all_predictions, batch_predictions])
+                all_labels = all_labels + np.array(np.argmax(labels, 1)).tolist()
                 ids = ids + np.array(id).tolist()
                 print("[{}] {{i}} batch_size: {}  accuracy: {}".format(_now(), i, len(questions)))
                 acc = np.average(np.equal(batch_predictions, np.argmax(labels, 1)).astype(np.float32))
@@ -250,7 +252,10 @@ with graph.as_default():
 print("Accuracy: {}".format(np.average(scores)))
 
 # Save the evaluation to a csv
-predictions_human_readable = np.column_stack((np.array(ids), all_predictions))
+print(len(all_labels))
+print(len(all_predictions))
+
+predictions_human_readable = np.column_stack((ids, all_predictions, all_labels))
 out_path = os.path.join(FLAGS.checkpoint_dir, "..", "prediction.csv")
 print("Saving evaluation to {0}".format(out_path))
 with open(out_path, 'w') as f:
