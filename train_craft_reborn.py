@@ -102,10 +102,14 @@ def convert_to_word_vector(senquence, dest_length):
     for word in senquence:
         if word in dic.keys():
             ans.append(dic[word])
+        
+        """
+        取消动态更新词典
         else:
             index = len(dic)
             dic[word] = index
             ans.append(index)
+        """
     ans = expand_array(ans, dest_length=dest_length)
     return np.array(ans)
 
