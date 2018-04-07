@@ -128,6 +128,26 @@ def batch_iter(data, batch_size, epoch_num, shuffle=True):
                             convert_to_word_vector(answer, FLAGS.max_answer_length)))
             yield np.array(res)
 
+def batch_iter_sp(data, batch_size, epoch_num, shuffle=False):
+    data = np.array(data)
+    data_size = len(data)
+    num_batches_per_epoch = int((len(data)-1)/batch_size) + 1
+    for epoch in range(epoch_num):
+        # Shuffle the data at each epoch
+        if shuffle:
+            shuffle_indices = np.random.permutation(np.arange(data_size))
+            shuffled_data = data[shuffle_indices]
+        else:
+            shuffled_data = data
+        for batch_num in range(num_batches_per_epoch):
+            start_index = batch_num * batch_size
+            end_index = min((batch_num + 1) * batch_size, data_size)
+            res = []
+            for id, question, answer in shuffled_data[start_index:end_index]:
+                res.append((id, convert_to_word_vector(question, FLAGS.max_question_length),
+                            convert_to_word_vector(answer, FLAGS.max_answer_length)))
+            yield np.array(res)
+
 manual_input = True
 if manual_input == False:
     # CHANGE THIS: Load data. Load your own data here

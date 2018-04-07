@@ -4,7 +4,7 @@ import jieba
 
 sample_count = 3000
 
-with open("train_data_sample.json", "r", encoding='utf-8') as f:
+with open("testing.json", "r", encoding='utf-8') as f:
     obj = json.load(f)
 
 pos_count = 0

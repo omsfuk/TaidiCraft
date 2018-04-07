@@ -71,6 +71,7 @@ embeddingW = []
 # 有效数据条数
 
 # 常量定义
+tf.flags.DEFINE_string("filename", "training.json", "文件名")
 tf.flags.DEFINE_integer("batch_size", 64, "数据集大小")
 tf.flags.DEFINE_integer("epoch_num", 100, "迭代次数")
 tf.flags.DEFINE_integer("max_question_length", 50, "最大问题长度")
@@ -94,14 +95,6 @@ tf.flags.DEFINE_boolean("allow_soft_placement", True, "Allow device soft device 
 tf.flags.DEFINE_boolean("log_device_placement", False, "Log placement of ops on devices")
 
 FLAGS = tf.flags.FLAGS
-
-"""
-获得样本大小
-"""
-def get_sample_size():
-    with open('mini_sample.json', 'r', encoding='utf-8') as f:
-        json_obj = json.load(f)
-    return len([1 for qa in json_obj for ans in qa['passages']])
 
 """
 词序列到向量
@@ -141,7 +134,7 @@ def init(end_pos=100000000, enable_balance_sample=True):
     res = []
     valid_sample = 0
     total_sample = 0
-    with open('train_data_sample.json', 'r',encoding='utf-8') as f:
+    with open(FLAGS.filename, 'r',encoding='utf-8') as f:
         json_obj = json.load(f)
     line_count = 0
     for qa in json_obj:
@@ -179,7 +172,6 @@ def init(end_pos=100000000, enable_balance_sample=True):
         valid_sample = len(res)
     return (total_sample, valid_sample, np.array(res))
 
-
 """
 生成训练数据。分批生成，节约Menory。假定样本书不超过1 * 10^^8
 """
@@ -205,9 +197,8 @@ def batch_iter(data, batch_size, epoch_num, shuffle=True):
             yield np.array(res)
 
    
-print("[%s] getting extract statistics..." % _now())
-embeddingW.append(np.zeros((FLAGS.embedding_size)))
-total_sample, valid_sample, text_data = init(end_pos=FLAGS.used_sample if FLAGS.used_sample is not None else 100000000, enable_balance_sample=False)
+print("[%s] getting statistics..." % _now())
+total_sample, valid_sample, text_data = init(end_pos=FLAGS.used_sample if FLAGS.used_sample is not None else 100000000, enable_balance_sample=True)
 
 dev_sample_index = -1 * int(FLAGS.dev_sample_percentage * float(valid_sample))
 data_train, data_dev = text_data[:dev_sample_index], text_data[dev_sample_index:]
