@@ -244,12 +244,21 @@ print("dict_size:\t\t %d" % len(dic))
 print("train_sample:\t\t %d" % len(data_train))
 print("dev_sample:\t\t %d" % len(data_dev))
 
+os.environ["CUDA_VISIBLE_DEVICES"] = "0"
+"""
+config = tf.ConfigProto()
+config.gpu_options.allow_growth = True
+sess = tf.InteractiveSession(config=config)
+"""
+
 # raise SystemExit("terminate")
 
 with tf.Graph().as_default():
     session_conf = tf.ConfigProto(
       allow_soft_placement=FLAGS.allow_soft_placement,
-      log_device_placement=FLAGS.log_device_placement)
+      log_device_placement=FLAGS.log_device_placement,
+      config.gpu_options.allow_growth=False)
+    # sess = tf.InteractiveSession(config=config)
     sess = tf.Session(config=session_conf)
     with sess.as_default():
         cnn = TextCNN(vocab_size=len(dic),
