@@ -311,7 +311,7 @@ with tf.Graph().as_default():
         sess.run(tf.local_variables_initializer())
         # sess.run(tf.initialize_local_variables()) # try commenting this line and you'll get the error
 
-        def train_step(labels, questions, answers):
+        def train_step(epoch, labels, questions, answers):
             # A single training step
             feed_dict = {
               cnn.questions: questions,
@@ -322,10 +322,10 @@ with tf.Graph().as_default():
                 [train_op, global_step, train_summary_op, cnn.loss, cnn.accuracy], feed_dict)
                                     
             time_str = datetime.datetime.now().isoformat()                
-            print("{}: step {}, loss {:g}, acc {:g}".format(time_str, step, loss, accuracy))
+            print("{}: epoch {}, step {}, loss {:g}, acc {:g}".format(time_str, epoch, step, loss, accuracy))
             train_summary_writer.add_summary(summaries, step)
      
-        def dev_step(epoch, labels, questions, answers):
+        def dev_step(labels, questions, answers):
             """
             Evaluates model on a dev set
             """
@@ -338,7 +338,7 @@ with tf.Graph().as_default():
                     [global_step, dev_summary_op, cnn.loss, cnn.accuracy], feed_dict)
             # dev_summary_writer.add_summary(summaries, step)
             time_str = datetime.datetime.now().isoformat()
-            print("{}: epoch {}, step {}, loss {:g}, acc {:g}".format(time_str, epoch, step, loss, accuracy))
+            print("{}: step {}, loss {:g}, acc {:g}".format(time_str, step, loss, accuracy))
             return (loss, accuracy)
 
         # Generate batches
