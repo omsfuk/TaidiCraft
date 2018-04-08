@@ -184,7 +184,7 @@ def batch_iter(data, batch_size, epoch_num, shuffle=True):
     data = np.array(data)
     data_size = len(data)
     num_batches_per_epoch = int((len(data)-1)/batch_size) + 1
-    for epoch in range(epoch_num):
+    for epoch in range(1, epoch_num + 1):
         # Shuffle the data at each epoch
         if shuffle:
             shuffle_indices = np.random.permutation(np.arange(data_size))
@@ -199,7 +199,7 @@ def batch_iter(data, batch_size, epoch_num, shuffle=True):
                 res.append((label,
                         convert_to_word_vector(question, FLAGS.max_question_length),
                         convert_to_word_vector(answer, FLAGS.max_answer_length)))
-            yield np.array(res)
+            yield (epoch, np.array(res))
 
 """   
 print("[{}] getting statistics...".format(_now()))
@@ -244,21 +244,12 @@ print("dict_size:\t\t %d" % len(dic))
 print("train_sample:\t\t %d" % len(data_train))
 print("dev_sample:\t\t %d" % len(data_dev))
 
-os.environ["CUDA_VISIBLE_DEVICES"] = "0"
-"""
-config = tf.ConfigProto()
-config.gpu_options.allow_growth = True
-sess = tf.InteractiveSession(config=config)
-"""
-
 # raise SystemExit("terminate")
 
 with tf.Graph().as_default():
     session_conf = tf.ConfigProto(
       allow_soft_placement=FLAGS.allow_soft_placement,
-      log_device_placement=FLAGS.log_device_placement,
-      config.gpu_options.allow_growth=False)
-    # sess = tf.InteractiveSession(config=config)
+      log_device_placement=FLAGS.log_device_placement)
     sess = tf.Session(config=session_conf)
     with sess.as_default():
         cnn = TextCNN(vocab_size=len(dic),
@@ -334,7 +325,7 @@ with tf.Graph().as_default():
             print("{}: step {}, loss {:g}, acc {:g}".format(time_str, step, loss, accuracy))
             train_summary_writer.add_summary(summaries, step)
      
-        def dev_step(labels, questions, answers):
+        def dev_step(epoch, labels, questions, answers):
             """
             Evaluates model on a dev set
             """
@@ -347,29 +338,29 @@ with tf.Graph().as_default():
                     [global_step, dev_summary_op, cnn.loss, cnn.accuracy], feed_dict)
             # dev_summary_writer.add_summary(summaries, step)
             time_str = datetime.datetime.now().isoformat()
-            print("{}: step {}, loss {:g}, acc {:g}".format(time_str, step, loss, accuracy))
+            print("{}: epoch {}, step {}, loss {:g}, acc {:g}".format(time_str, epoch, step, loss, accuracy))
             return (loss, accuracy)
 
         # Generate batches
         batches = batch_iter(data_train, FLAGS.batch_size, FLAGS.epoch_num)
         # Training loop. For each batch...
-        for batch in batches:
+        for epoch, batch in batches:
             labels, questions, answers = zip(*batch)
-            train_step(labels=np.array(labels), questions=np.array(questions), answers=np.array(answers))
+            train_step(epoch=epoch, labels=np.array(labels), questions=np.array(questions), answers=np.array(answers))
             current_step = tf.train.global_step(sess, global_step)
             if current_step % FLAGS.evaluate_every == 0:
                 print("\nEvaluation:")
                 summary = tf.Summary()
                 dev_batchs = batch_iter(data_dev, FLAGS.batch_size, 1)
                 ans = []
-                for dev_batch in dev_batchs:
+                for epoch, dev_batch in dev_batchs:
                     labels, questions, answers = zip(*dev_batch)
                     ans.append(dev_step(labels=np.array(labels), questions=np.array(questions), answers=np.array(answers)))
                 ans = np.average(ans, axis=0)
                 summary.value.add(tag="loss", simple_value=ans.tolist()[0])
                 summary.value.add(tag="Accuracy", simple_value=ans.tolist()[1])
                 dev_summary_writer.add_summary(summary, current_step)
-                print("{} loss {:g}, acc {:g}".format(_now(), ans.tolist()[0], ans.tolist()[1]))
+                print("{} eloss {:g}, acc {:g}".format(_now(), ans.tolist()[0], ans.tolist()[1]))
                 print("")
             if current_step % FLAGS.checkpoint_every == 0:
                 path = saver.save(sess, checkpoint_prefix, global_step=current_step)

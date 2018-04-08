@@ -5,7 +5,7 @@ train_data*.json
 unbalance*.json
 testing_*.json
 traing_*.json
-training.json
+training*.json
 testing.json
 train_data_complete.json
 submit_sample.json
