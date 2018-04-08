@@ -24,7 +24,7 @@
 #━━━━━━神兽出没━━━━━━
 import tensorflow as tf
 import json
-# import jieba
+import jieba
 import numpy as np
 import re
 import time
@@ -41,7 +41,7 @@ from textrank4zh import TextRank4Keyword, TextRank4Sentence
 tr4w = TextRank4Keyword()
 
 # jieba初始化
-# jieba.initialize()
+jieba.initialize()
 
 # 正文匹配，过滤特殊字符
 p = re.compile(r'[\u4e00-\u9fa5_a-zA-Z0-9]+')
@@ -144,8 +144,8 @@ def init(filename, end_pos=100000000, enable_balance_sample=True):
     for qa in json_obj:
         question = qa['question']
 
-        tr4w.analyze(text=question, lower=True, window=2)  # py2中text必须是utf8编码的str或者unicode对象，py3中必须是utf8编码的bytes或者str对象
-        question_seg = [x for x in filter(filter_punt, [w.word for w in tr4w.get_keywords(FLAGS.question_key_words_limit)])] # 问题 词序列
+        # tr4w.analyze(text=question, lower=True, window=2)  # py2中text必须是utf8编码的str或者unicode对象，py3中必须是utf8编码的bytes或者str对象
+        question_seg = [x for x in filter(filter_punt, jieba.lcut(question, cut_all=False))] # 问题 词序列
         # 问题长度过滤
         if len(question_seg) > FLAGS.max_question_length or len(question_seg) < FLAGS.min_question_length:
             continue
