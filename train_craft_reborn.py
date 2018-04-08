@@ -238,11 +238,20 @@ with open(os.path.join(out_dir, "word.index"), "wb") as f:
     pickle.dump(dic, f)
 print("[{}] Dictonary Persistence Done.".format(_now()))
 
+with open(os.path.join(out_dir, "parameter.txt"), "w", encoding="utf-8") as f:
+        f.write("dropout \t\t{}\n".format(FLAGS.dropout_keep_prob))
+        f.write("l2      \t\t{}\n".format(FLAGS.l2_reg_lambda))
+        f.write("filter_num\t\t{}\n".format(FLAGS.filter_num))
+        f.write("filter_size\t\t{}\n".format(FLAGS.filter_sizes))
+        f.write("training sample\t\t{}\n".format(len(data_train)))
+        f.write("testing  sample\t\t{}\n".format(len(data_dev)))
+
 print("total_sample:\t\t %d" % FLAGS.used_sample if FLAGS.used_sample is not None else total_sample)
 print("valid_sample:\t\t %d" % valid_sample)
 print("dict_size:\t\t %d" % len(dic))
 print("train_sample:\t\t %d" % len(data_train))
 print("dev_sample:\t\t %d" % len(data_dev))
+
 
 # raise SystemExit("terminate")
 
