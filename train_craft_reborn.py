@@ -38,9 +38,10 @@ from lib_craft import expand_array
 from lib_craft import balance_sample
 from tensorflow.python import debug as tf_debug
 from textrank4zh import TextRank4Keyword, TextRank4Sentence
+tr4w = TextRank4Keyword()
 
 # jieba初始化
-jieba.initialize()
+# jieba.initialize()
 
 # 正文匹配，过滤特殊字符
 p = re.compile(r'[\u4e00-\u9fa5_a-zA-Z0-9]+')
