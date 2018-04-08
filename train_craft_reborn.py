@@ -68,6 +68,7 @@ embeddingW = []
 # 有效数据条数
 
 # 常量定义
+tf.flags.DEFINE_integer("key_words_limit", "64", "关键词数量")
 tf.flags.DEFINE_string("train_file", "training_320_1_1.json", "文件名")
 tf.flags.DEFINE_string("test_file", "testing_320_1_1.json", "文件名")
 tf.flags.DEFINE_integer("batch_size", 64, "数据集大小")
@@ -143,7 +144,7 @@ def init(filename, end_pos=100000000, enable_balance_sample=True):
         question = qa['question']
 
         tr4w.analyze(text=question, lower=True, window=2)  # py2中text必须是utf8编码的str或者unicode对象，py3中必须是utf8编码的bytes或者str对象
-        question_seg = [x for x in filter(filter_punt, [w.word for w in tr4w.get_keywords(64)])] # 问题 词序列
+        question_seg = [x for x in filter(filter_punt, [w.word for w in tr4w.get_keywords(FLAGS.key_words_limit)])] # 问题 词序列
         # 问题长度过滤
         if len(question_seg) > FLAGS.max_question_length or len(question_seg) < FLAGS.min_question_length:
             continue
@@ -163,7 +164,7 @@ def init(filename, end_pos=100000000, enable_balance_sample=True):
                 print("[{}] processing {} question/answer".format(_now(), line_count))
 
             tr4w.analyze(text=answer, lower=True, window=2)  # py2中text必须是utf8编码的str或者unicode对象，py3中必须是utf8编码的bytes或者str对象
-            answer_seg = [x for x in filter(filter_punt, [w.word for w in tr4w.get_keywords(64)])] # 问题 词序列
+            answer_seg = [x for x in filter(filter_punt, [w.word for w in tr4w.get_keywords(FLAGS.key_words_limit)])] # 问题 词序列
             # 答案长度过滤
             if len(answer_seg) > FLAGS.max_answer_length or len(answer_seg) < FLAGS.min_question_length:
                 continue
