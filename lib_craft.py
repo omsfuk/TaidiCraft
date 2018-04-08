@@ -1,6 +1,7 @@
 # -*- encoding: utf-8 -*-
 import datetime
 import numpy as np
+import json
 
 with open('question_key_word.json', "r", encoding="utf-8") as f:
     q_key_words = json.load(f)
@@ -37,5 +38,6 @@ def question_feature(seq):
     return np.array(vec)
 
 def answer_feature():
+    return
     
     
