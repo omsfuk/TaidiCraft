@@ -23,4 +23,8 @@ def expand_array(arr, dest_length):
     ans = np.zeros((dest_length))
     ans[0:len(arr)] = np.array(arr)
     return ans
+
+def question_feature():
+
+def answer_feature():
     
