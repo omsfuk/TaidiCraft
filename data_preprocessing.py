@@ -12,6 +12,7 @@ from textrank4zh import TextRank4Keyword, TextRank4Sentence
 input_file = sys.argv[1]
 
 enable_debug_mode = False
+enable_generate_passage_id = True # 是否生成passage_id
 vec_file = "{}.vec".format(os.path.splitext(input_file)[0])
 tr4w = TextRank4Keyword()
 p = re.compile(r'[\u4e00-\u9fa5_a-zA-Z0-9]+')
@@ -56,22 +57,27 @@ def step_one(filename):
             if count % 5000 == 0:
                 mprint("Process {} question/answer".format(count))
             answer = ans['content']
+            # 如果不含标签，则生成0
+            label = 0 if 'label' not in ans.keys() else ans['label']
             answer_seg = get_seg(answer, answer_keywords_limit)
-            res.append((ans['label'], question_seg, answer_seg))
+            res.append((ans['passage_id'], label, question_seg, answer_seg))
     mprint("Complete.")
     return res
 
 def step_two(raw_data):
     res = []
     count = 0
-    for label, question, answer in raw_data:
+    for passage_id, label, question, answer in raw_data:
         count += 1
         if count % 5000 == 0:
             mprint("Process {} question/answer".format(count))
         l_vec = [1, 0] if label == 0 else [0, 1]
         q_vec = convert2vec(question, question_keywords_limit)
         a_vec = convert2vec(answer, answer_keywords_limit)
-        res.append((l_vec, q_vec, a_vec))
+        if enable_generate_passage_id == True:
+            res.append(([passage_id, ], l_vec, q_vec, a_vec))
+        else:
+            res.append((l_vec, q_vec, a_vec))
     # shuffle
     res = np.array(res)
     shuffle_indices = np.random.permutation(np.arange(len(res)))
