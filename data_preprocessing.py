@@ -43,21 +43,31 @@ def convert2vec(segs, d_len):
     return res
         
 def step_one(filename):
+    mprint("Starting step one")
     res = []
+    count = 0
     with open(filename, "r", encoding='utf-8') as f:
         obj = json.load(f)
     for qa in obj:
         question = qa['question']
         question_seg = get_seg(question, question_keywords_limit)
         for ans in qa['passages']:
+            count += 1
+            if count % 5000 == 0:
+                mprint("Process {} question/answer".format(count))
             answer = ans['content']
             answer_seg = get_seg(answer, answer_keywords_limit)
             res.append((ans['label'], question_seg, answer_seg))
+    mprint("Complete.")
     return res
 
 def step_two(raw_data):
     res = []
+    count = 0
     for label, question, answer in raw_data:
+        count += 1
+        if count % 5000 == 0:
+            mprint("Process {} question/answer".format(count))
         l_vec = [1, 0] if label == 0 else [0, 1]
         q_vec = convert2vec(question, question_keywords_limit)
         a_vec = convert2vec(answer, answer_keywords_limit)
