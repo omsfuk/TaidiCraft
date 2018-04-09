@@ -9,6 +9,9 @@ with open('question_key_word.json', "r", encoding="utf-8") as f:
 def _now():
     return datetime.datetime.now().strftime('%b-%d-%y %H:%M:%S')
 
+def mprint(text):
+    print("[{}] {}".format(_now(), text))
+
 def balance_sample(data):
     data = np.array(data)
     positive_sample = [x for x in filter(lambda x: x[0] == [0, 1], data)]

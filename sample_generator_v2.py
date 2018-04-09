@@ -12,8 +12,8 @@ neg_limit = int(sys.argv[4])
 output_file = "{}_{}_{}_{}.json".format(os.path.splitext(input_file)[0], question_limit, pos_limit, neg_limit)
 
 ratio = pos_limit / neg_limit
-question_length = 128
-answer_length = 64
+question_length = 1000
+answer_length = 20000
 p = re.compile('[\u4e00-\u9fa50-9a-zA-Z]+')
 
 print("question count: {}".format(question_limit))
