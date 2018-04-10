@@ -9,8 +9,8 @@ import pickle
 from text_cnn_craft import TextCNN
 from lib_craft import mprint
 
-train_file = "training_320_1_1.vec"
-test_file = "testing_320_1_1.vec"
+train_file = "train_data_complete_10000_2_2.vec"
+test_file = "testing.vec"
 batch_size = 64
 epoch_num = 100
 embedding_size = 256
@@ -48,12 +48,14 @@ def batch_iter(data, batch_size, epoch_num, shuffle=True):
             yield (epoch, shuffled_data[start_index:end_index])
 
 def get_sample(train_file, test_file):
-    mprint("load vector ...")
+    mprint("Load vector ...")
     with open(train_file, "rb") as f:
         data_train = pickle.load(f)
+        data_train = np.delete(data_train, 0, 1)
 
     with open(test_file, "rb") as f:
         data_dev = pickle.load(f)
+        data_train = np.delete(data_train, 0, 1)
     mprint("Complete")
     return (data_train, data_dev)
 
@@ -92,6 +94,7 @@ def load_model():
     mprint("Complete.")
     return model
 
+os.environ["CUDA_VISIBLE_DEVICES"] = "0"
 data_train, data_dev = get_sample(train_file, test_file)
 
 # 索引词典
@@ -197,14 +200,14 @@ with tf.Graph().as_default():
             return (loss, accuracy)
 
         # Generate batches
-        batches = batch_iter(data_train, batch_size,epoch_num)
+        batches = batch_iter(data_train, batch_size, epoch_num)
         # Training loop. For each batch...
         for epoch, batch in batches:
             labels, questions, answers = zip(*batch)
             train_step(epoch=epoch, labels=np.array(labels), questions=np.array(questions), answers=np.array(answers))
             current_step = tf.train.global_step(sess, global_step)
             if current_step % evaluate_every == 0:
-                mprint("\nEvaluation:")
+                print("\nEvaluation:")
                 summary = tf.Summary()
                 dev_batchs = batch_iter(data_dev, batch_size, 1)
                 ans = []

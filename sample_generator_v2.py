@@ -40,14 +40,16 @@ for q in q_list:
     neg_count = 0
     pos = []
     neg = []
-    if len([1 for _ in filter(lambda x: p.match(x), jieba.lcut(q['question'], cut_all=False))]) > question_length:
-        continue
+    if need_validate == True:
+        if len([1 for _ in filter(lambda x: p.match(x), jieba.lcut(q['question'], cut_all=False))]) > question_length:
+            continue
     if q_count == question_limit:
         break
     q_count += 1
     for a in q['passages']:
-        if len([1 for _ in filter(lambda x: p.match(x), jieba.lcut(a['content'], cut_all=False))]) > answer_length:
-            continue
+        if need_validate == True:
+            if len([1 for _ in filter(lambda x: p.match(x), jieba.lcut(a['content'], cut_all=False))]) > answer_length:
+                continue
         if a['label'] == 1:
             pos.append(a)
         else:

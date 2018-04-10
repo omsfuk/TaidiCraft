@@ -6,15 +6,16 @@ import os
 import sys
 import re
 import gensim
+import jieba.analyse
 from lib_craft import mprint
-from textrank4zh import TextRank4Keyword, TextRank4Sentence
+# from textrank4zh import TextRank4Keyword, TextRank4Sentence
 
 input_file = sys.argv[1]
 
 enable_debug_mode = False
-enable_generate_passage_id = True # 是否生成passage_id
+enable_generate_passage_id = True# 是否生成passage_id
 vec_file = "{}.vec".format(os.path.splitext(input_file)[0])
-tr4w = TextRank4Keyword()
+# tr4w = TextRank4Keyword()
 p = re.compile(r'[\u4e00-\u9fa5_a-zA-Z0-9]+')
 filter_punt = lambda s: p.match(s)
 
@@ -22,7 +23,7 @@ mprint("Loading model ...")
 model = gensim.models.Word2Vec.load('npy/word2vec_wx')
 mprint("Model loading finished")
 
-question_keywords_limit = 16 
+question_keywords_limit = 50
 answer_keywords_limit = 32
 
 # 索引词典
@@ -33,8 +34,7 @@ else:
     raise SystemExit("Can't find word.index")
 
 def get_seg(text, num):
-    tr4w.analyze(text=text, lower=True, window=2)
-    return [x for x in filter(filter_punt, [w.word for w in tr4w.get_keywords(num)])]
+    return [x for x in filter(filter_punt, [w for w in jieba.analyse.extract_tags(text, topK=num)])]
 
 def convert2vec(segs, d_len):
     res = np.zeros((d_len))
@@ -51,7 +51,9 @@ def step_one(filename):
         obj = json.load(f)
     for qa in obj:
         question = qa['question']
-        question_seg = get_seg(question, question_keywords_limit)
+        # question_seg = get_seg(question, question_keywords_limit)
+        # 换用结巴分词。关键词信息丢失太大
+        question_seg = jieba.lcut(question, cut_all=False)[0: question_keywords_limit]
         for ans in qa['passages']:
             count += 1
             if count % 5000 == 0:
@@ -90,6 +92,5 @@ mprint("Writing to <{}>. Please don't interrupt it ...".format(vec_file))
 with open(vec_file, "wb") as f:
     pickle.dump(res, f)
 mprint("Done !")
-
 
 
