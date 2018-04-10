@@ -19,7 +19,8 @@ question_vector_length = 50
 answer_vector_length = 32 
 
 def init():
-    global p, filter_punt, dic, model
+    global p, filter_punt, dic, model, question_keywords_dict
+    global countries_dict, provinces_dict, cities_dict, areas_dict, emperors_dict, num_dict
     p = re.compile(r'[\u4e00-\u9fa5_a-zA-Z0-9]+')
     filter_punt = lambda s: p.match(s)
 
@@ -33,9 +34,44 @@ def init():
     mprint("Loading model ...")
     model = gensim.models.Word2Vec.load('npy/word2vec_wx')
     mprint("Model loading finished")
+    with open("question_keywords", "r", encoding='utf-8') as f:
+        question_keywords_dict = json.load(f)
+    with open("countries.json", "r", encoding="utf-8") as f:
+        countries_dict = json.load(f)
+    with open("provinces.json", "r", encoding="utf-8") as f:
+        provinces_dict = json.load(f)
+    with open("areas.json", "r", encoding="utf-8") as f:
+        areas_dict = json.load(f)
+    with open("emperors.json", "r", encoding="utf-8") as f:
+        emperors_dict = json.load(f)
+
+    num_dict = ['0', '1', '2', '3', '4', '5', '6', '7', '8', '9']
 
 def extract_feature_vector(raw_sample, length):
-    return ()
+    question_feature = np.zeros((length))
+    answer_feature = np.zeros((length))
+
+    # extract question feature
+    for i, keyword_family in enumerate(question_keywords_dict):
+        flag = False
+        for keyword in keyword_family:
+            if keyword in question:
+                question_feature[i] = 1
+                flag = True
+                break
+        if flag == False:
+            question_feature[i] = 0
+
+    # extract answer feature
+    answer_feature[0] = 0 if len([c for c in countries_dict if c in answer]) <= 0 else 1
+    answer_feature[1] = 0 if len([c for c in provinces_dict if c in answer]) <= 0 else 1
+    answer_feature[2] = 0 if len([c for c in cities_dict if c in answer]) <= 0 else 1
+    answer_feature[3] = 0 if len([c for c in areas_dict if c in answer]) <= 0 else 1
+    answer_feature[4] = 0 if len([c for c in emperors_dict if c in answer]) <= 0 else 1
+    answer_feature[5] = 0 if len([c for c in num_dict if c in answer]) <= 0 else 1
+    answer_feature[6] = 1 if '年' in answer else 0
+
+    return (question_feature, answer_feature)
 
 def get_segments(text, use_jieba_fenci, length):
     if use_jieba_fenci == True:

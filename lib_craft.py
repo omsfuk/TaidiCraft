@@ -3,9 +3,6 @@ import datetime
 import numpy as np
 import json
 
-with open('question_key_word.json', "r", encoding="utf-8") as f:
-    q_key_words = json.load(f)
-
 def _now():
     return datetime.datetime.now().strftime('%b-%d-%y %H:%M:%S')
 
@@ -30,17 +27,4 @@ def expand_array(arr, dest_length):
     ans = np.zeros((dest_length))
     ans[0:len(arr)] = np.array(arr)
     return ans
-
-def question_feature(seq):
-    vec = []
-    for kw in q_key_words:
-        if kw in seq:
-            vec.append(1)
-        else:
-            vec.append(0)
-    return np.array(vec)
-
-def answer_feature():
-    return
-    
-    
+   
