@@ -8,7 +8,7 @@ from lib_craft import mprint
 
 test_file = "testing_320_1_1.vec"
 batch_size = 128 
-checkpoint_dir = "runs/1523278549/checkpoints"
+checkpoint_dir = "runs/1523445477/checkpoints"
 
 def get_sample(test_file):
     mprint("Load vector ...")
@@ -53,7 +53,9 @@ with graph.as_default():
 
         # Get the placeholders from the graph by name
         input_questions = graph.get_operation_by_name("questions").outputs[0]
+        input_questions_feature = graph.get_operation_by_name("question_feature").outputs[0]
         input_answers = graph.get_operation_by_name("answers").outputs[0]
+        input_answers_feature = graph.get_operation_by_name("answer_feature").outputs[0]
         input_dropout_keep_prob = graph.get_operation_by_name("dropout_keep_prob").outputs[0]
 
         # Tensors we want to evaluate
@@ -68,8 +70,10 @@ with graph.as_default():
         # Generate batches for one epoch
         batches = batch_iter(data_dev, batch_size, 1, shuffle=True)
         for i, batch in enumerate(batches):
-            passage_id, labels, questions, answers = zip(*batch)
-            batch_predictions = sess.run(predictions, {input_questions: questions, input_answers: answers, input_dropout_keep_prob:1.0})
+            passage_id, labels, questions, answers, question_feature, answer_feature = zip(*batch)
+            batch_predictions = sess.run(predictions, 
+                    {input_questions: questions, input_answers: answers, input_dropout_keep_prob:1.0, 
+                        input_questions_feature: question_feature, input_answers_feature: answer_feature})
             # all_predictions = np.concatenate((all_predictions, batch_predictions))
             all_predictions = all_predictions + np.array(batch_predictions).reshape((-1)).tolist()
             all_labels = all_labels + np.array(np.argmax(labels, 1)).tolist()

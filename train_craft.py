@@ -171,6 +171,8 @@ with tf.Graph().as_default():
 
         def train_step(epoch, labels, questions, answers, question_feature, answer_feature):
             # A single training step
+            avg_acc = []
+            avg_loss = []
             feed_dict = {
               cnn.questions: questions,
               cnn.answers: answers,
@@ -180,10 +182,14 @@ with tf.Graph().as_default():
               cnn.answer_feature: answer_feature
             }
             _, step, summaries, loss, accuracy = sess.run(
-                [train_op, global_step, train_summary_op, cnn.loss, cnn.accuracy], feed_dict)
+               [train_op, global_step, train_summary_op, cnn.loss, cnn.accuracy], feed_dict)
+            avg_acc.append(accuracy)
+            avg_loss.append(loss)
                                     
             mprint("epoch {}, step {}, loss {:g}, acc {:g}".format(epoch, step, loss, accuracy))
             train_summary_writer.add_summary(summaries, step)
+            
+            return (np.average(avg_loss), np.average(avg_acc))
      
         def dev_step(labels, questions, answers, question_feature, answer_feature):
             """
@@ -204,12 +210,13 @@ with tf.Graph().as_default():
             mprint("step {}, loss {:g}, acc {:g}".format(step, loss, accuracy))
             return (loss, accuracy)
 
+        max_acc = 0
         # Generate batches
         batches = batch_iter(data_train, batch_size, epoch_num)
         # Training loop. For each batch...
         for epoch, batch in batches:
             _, labels, questions, answers, q_feature, a_feature = zip(*batch)
-            train_step(epoch=epoch, labels=np.array(labels), questions=np.array(questions), answers=np.array(answers), question_feature=q_feature, answer_feature=a_feature)
+            loss, acc = train_step(epoch=epoch, labels=np.array(labels), questions=np.array(questions), answers=np.array(answers), question_feature=q_feature, answer_feature=a_feature)
             current_step = tf.train.global_step(sess, global_step)
             if current_step % evaluate_every == 0:
                 print("\nEvaluation:")
@@ -224,7 +231,7 @@ with tf.Graph().as_default():
                 summary.value.add(tag="Accuracy", simple_value=avg_acc)
                 dev_summary_writer.add_summary(summary, current_step)
                 mprint("Summary:   loss {:g}, acc {:g}\n".format(avg_loss, avg_acc))
-            if current_step % checkpoint_every == 0:
+            if current_step % checkpoint_every == 0 and acc > max_acc:
                 path = saver.save(sess, checkpoint_prefix, global_step=current_step)
                 mprint("Saved model checkpoint to {}\n".format(path))
 
