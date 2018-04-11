@@ -123,7 +123,7 @@ for count, raw_sample in enumerate(extract_sample(input_file)):
     passage_id, label, question, answer = raw_sample
     feature_vector = extract_feature_vector(raw_sample, feature_vector_length)
     label_vector = [0, 1] if label == 1 else [1, 0]
-    question_segments = get_segments(question, use_jieba_fenci=True, length=question_vector_length)
+    question_segments = get_segments(question, use_jieba_fenci=True, length=question_vector_length)[0:question_vector_length]
     answer_segments = get_segments(answer, use_jieba_fenci=False, length=answer_vector_length)
     question_vector = convert2vec(question_segments, question_vector_length)
     answer_vector = convert2vec(answer_segments, answer_vector_length)
