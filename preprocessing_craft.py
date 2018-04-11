@@ -34,12 +34,14 @@ def init():
     mprint("Loading model ...")
     model = gensim.models.Word2Vec.load('npy/word2vec_wx')
     mprint("Model loading finished")
-    with open("question_keywords", "r", encoding='utf-8') as f:
+    with open("question_keywords.json", "r", encoding='utf-8') as f:
         question_keywords_dict = json.load(f)
     with open("countries.json", "r", encoding="utf-8") as f:
         countries_dict = json.load(f)
     with open("provinces.json", "r", encoding="utf-8") as f:
         provinces_dict = json.load(f)
+    with open("cities.json", "r", encoding="utf-8") as f:
+        cities_dict = json.load(f)
     with open("areas.json", "r", encoding="utf-8") as f:
         areas_dict = json.load(f)
     with open("emperors.json", "r", encoding="utf-8") as f:
@@ -125,7 +127,7 @@ for count, raw_sample in enumerate(extract_sample(input_file)):
     answer_segments = get_segments(answer, use_jieba_fenci=False, length=answer_vector_length)
     question_vector = convert2vec(question_segments, question_vector_length)
     answer_vector = convert2vec(answer_segments, answer_vector_length)
-    result.append((passage_id, label_vector, question_vector, answer_vector) + feature_vector)
+    result.append(([passage_id, ], label_vector, question_vector, answer_vector) + feature_vector)
 
 persistent(result)
 

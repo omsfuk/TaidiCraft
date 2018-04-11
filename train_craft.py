@@ -9,8 +9,8 @@ import pickle
 from text_cnn_craft import TextCNN
 from lib_craft import mprint
 
-train_file = "train_data_complete_10000_2_2.vec"
-test_file = "testing.vec"
+train_file = "train_data_sample_100_2_6.vec"
+test_file = "testing_320_1_1.vec"
 batch_size = 64
 epoch_num = 100
 embedding_size = 256
@@ -24,8 +24,10 @@ evaluate_every = 5
 checkpoint_num = 5
 checkpoint_every = 5
 
-question_length = 16
+question_length = 50
 answer_length = 32
+
+feature_size = 10
 
 
 """
@@ -51,11 +53,9 @@ def get_sample(train_file, test_file):
     mprint("Load vector ...")
     with open(train_file, "rb") as f:
         data_train = pickle.load(f)
-        data_train = np.delete(data_train, 0, 1)
 
     with open(test_file, "rb") as f:
         data_dev = pickle.load(f)
-        data_train = np.delete(data_train, 0, 1)
     mprint("Complete")
     return (data_train, data_dev)
 
@@ -120,6 +120,7 @@ with tf.Graph().as_default():
                     embedding_size=embedding_size,
                     num_filters=filter_num,
                     classes_num=2,
+                    feature_size=feature_size,
                     l2_reg_lambda=l2_reg_lambda,
                     filter_sizes=list(map(int, filter_sizes.split(","))),
                     embeddingW=np.array(embeddingW).astype(np.float32))
@@ -168,13 +169,15 @@ with tf.Graph().as_default():
         sess.run(tf.global_variables_initializer())
         # sess.run(tf.local_variables_initializer()) # auc needed
 
-        def train_step(epoch, labels, questions, answers):
+        def train_step(epoch, labels, questions, answers, question_feature, answer_feature):
             # A single training step
             feed_dict = {
               cnn.questions: questions,
               cnn.answers: answers,
               cnn.labels: labels,
-              cnn.dropout_keep_prob: dropout_keep_prob
+              cnn.dropout_keep_prob: dropout_keep_prob,
+              cnn.question_feature: question_feature,
+              cnn.answer_feature: answer_feature
             }
             _, step, summaries, loss, accuracy = sess.run(
                 [train_op, global_step, train_summary_op, cnn.loss, cnn.accuracy], feed_dict)
@@ -182,7 +185,7 @@ with tf.Graph().as_default():
             mprint("epoch {}, step {}, loss {:g}, acc {:g}".format(epoch, step, loss, accuracy))
             train_summary_writer.add_summary(summaries, step)
      
-        def dev_step(labels, questions, answers):
+        def dev_step(labels, questions, answers, question_feature, answer_feature):
             """
             Evaluates model on a dev set
             """
@@ -190,7 +193,9 @@ with tf.Graph().as_default():
                 cnn.questions: questions,
                 cnn.answers: answers,
                 cnn.labels: labels,
-                cnn.dropout_keep_prob: 1.0
+                cnn.dropout_keep_prob: 1.0,
+                cnn.question_feature: question_feature,
+                cnn.answer_feature: answer_feature
             }
             step, summaries, loss, accuracy = sess.run(
                     [global_step, dev_summary_op, cnn.loss, cnn.accuracy], feed_dict)
@@ -203,8 +208,8 @@ with tf.Graph().as_default():
         batches = batch_iter(data_train, batch_size, epoch_num)
         # Training loop. For each batch...
         for epoch, batch in batches:
-            labels, questions, answers = zip(*batch)
-            train_step(epoch=epoch, labels=np.array(labels), questions=np.array(questions), answers=np.array(answers))
+            _, labels, questions, answers, q_feature, a_feature = zip(*batch)
+            train_step(epoch=epoch, labels=np.array(labels), questions=np.array(questions), answers=np.array(answers), question_feature=q_feature, answer_feature=a_feature)
             current_step = tf.train.global_step(sess, global_step)
             if current_step % evaluate_every == 0:
                 print("\nEvaluation:")
@@ -212,8 +217,8 @@ with tf.Graph().as_default():
                 dev_batchs = batch_iter(data_dev, batch_size, 1)
                 ans = []
                 for epoch, dev_batch in dev_batchs:
-                    labels, questions, answers = zip(*dev_batch)
-                    ans.append(dev_step(labels=np.array(labels), questions=np.array(questions), answers=np.array(answers)))
+                    _, labels, questions, answers, q_feature, a_feature = zip(*dev_batch)
+                    ans.append(dev_step(labels=np.array(labels), questions=np.array(questions), answers=np.array(answers), question_feature=q_feature, answer_feature=a_feature))
                 avg_loss, avg_acc = np.average(ans, axis=0).tolist()
                 summary.value.add(tag="loss", simple_value=avg_loss)
                 summary.value.add(tag="Accuracy", simple_value=avg_acc)
@@ -222,13 +227,6 @@ with tf.Graph().as_default():
             if current_step % checkpoint_every == 0:
                 path = saver.save(sess, checkpoint_prefix, global_step=current_step)
                 mprint("Saved model checkpoint to {}\n".format(path))
-
-
-
-
-
-
-
 
 
 

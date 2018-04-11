@@ -9,13 +9,16 @@ class TextCNN(object):
     Uses an embedding layer, followed by a convolutional, max-pooling and softmax layer.
     """
     def __init__(
-      self, vocab_size, question_length, answer_length,
+      self, vocab_size, question_length, answer_length, feature_size,
       embedding_size, classes_num, num_filters, filter_sizes,l2_reg_lambda=0.0, embeddingW=None):
         # Placeholders for input, output and dropout
 
         self.questions = tf.placeholder(tf.int32, [None, question_length], name="questions")
         self.answers = tf.placeholder(tf.int32, [None, answer_length], name="answers")
         self.labels = tf.placeholder(tf.float32, [None, classes_num], name="labels")
+        self.question_feature = tf.placeholder(tf.float32, [None, feature_size], name="question_feature")
+        self.answer_feature = tf.placeholder(tf.float32, [None, feature_size], name="answer_feature")
+
         self.dropout_keep_prob = tf.placeholder(tf.float32, name="dropout_keep_prob")
         l2_loss = tf.constant(0.0)
         # Embedding layer
@@ -91,9 +94,11 @@ class TextCNN(object):
 
         self.question_pool = tf.concat(question_outputs, 3)
         self.question_pool_flat = tf.reshape(self.question_pool, [-1, num_filters_total])
+        self.question_pool_flat = tf.concat([self.question_pool_flat, self.question_feature], 1)
 
         self.answer_pool = tf.concat(answer_outputs, 3)
         self.answer_pool_flat = tf.reshape(self.answer_pool, [-1, num_filters_total])
+        self.answer_pool_flat = tf.concat([self.answer_pool_flat, self.answer_feature], 1)
 		
         #self.text_pool_flat = tf.concat((question_pool_flat, answer_pool_flat),axis=1)
 
@@ -108,7 +113,7 @@ class TextCNN(object):
             self.question_drop = tf.nn.dropout(self.question_pool_flat, self.dropout_keep_prob)
             self.answer_drop = tf.nn.dropout(self.answer_pool_flat, self.dropout_keep_prob)
         with tf.name_scope("full-connected"):
-            W3 = tf.Variable(tf.truncated_normal([num_filters_total, classes_num], stddev=0.1), name="W3")
+            W3 = tf.Variable(tf.truncated_normal([num_filters_total + feature_size, classes_num], stddev=0.1), name="W3")
             b3 = tf.Variable(tf.constant(0.1, shape=[classes_num]), name="b3")
             l2_loss += tf.nn.l2_loss(W3)
             l2_loss += tf.nn.l2_loss(b3)
