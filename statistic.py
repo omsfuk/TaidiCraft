@@ -6,11 +6,14 @@ import csv
 import codecs
 import re
 import sys
+import matplotlib.pylab as plt
+import numpy as np
 from gensim.models import word2vec
 
 input_file = sys.argv[1]
 
 dic = {}
+dic_fre = {}
 model = gensim.models.Word2Vec.load('./npy/word2vec_wx')
 
 with open(input_file, 'r') as f:
@@ -22,6 +25,8 @@ missing_word = 0
 existing_word = 0
 longest_question = 0
 longest_answer = 0
+
+total_question = 0
 
 p = re.compile('[\u4e00-\u9fa50-9a-zA-Z]')
 
@@ -35,6 +40,10 @@ def process(sequence, axis):
     global existing_word
     index = 0
     seg_list = [x for x in filter(lambda x: p.match(x), jieba.lcut(sequence, cut_all=False))]
+    if len(seg_list) not in dic_fre.keys():
+        dic_fre[len(seg_list)] = 1
+    else:
+        dic_fre[len(seg_list)] += 1
     if axis == True:
         if len(seg_list) > longest_question:
             longest_question = len(seg_list)
@@ -78,4 +87,10 @@ print("existing word   {}".format(existing_word))
 print("longest question{}".format(longest_question))
 print("longest answer  {}".format(longest_answer))
 
-
+print("64 {}".format(np.sum([x[1] for x in dic_fre.items() if x[0] <= 64]) / total_sample))
+print("128 {}".format(np.sum([x[1] for x in dic_fre.items() if x[0] <= 128]) / total_sample))
+print("256 {}".format(np.sum([x[1] for x in dic_fre.items() if x[0] <= 256]) / total_sample))
+list = sorted(dic_fre.items())
+x, y = zip(*list)
+plt.plot(x, y)
+plt.show()

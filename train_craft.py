@@ -1,3 +1,4 @@
+#!/usr/bin/python3
 # -*- encoding: utf-8 -*-
 import tensorflow as tf
 import numpy as np
@@ -6,26 +7,31 @@ import datetime
 import os
 import gensim
 import pickle
-from text_cnn_craft import TextCNN
+from text_cnn_craft_onemodel import TextCNN
 from lib_craft import mprint
 
-train_file = "train_data_sample_100_2_6.vec"
+oo = 2147483647
+train_file = "training_320_1_1.vec"
 test_file = "testing_320_1_1.vec"
-batch_size = 64
-epoch_num = 100
+test_file2 = "testing_320_1_1.vec"
+test_file3 = "testing_320_1_1.vec"
+batch_size = 128
+epoch_num = oo
 embedding_size = 256
+learn_rate = 0.0001
 
-filter_sizes = "3, 4, 5"
+filter_sizes = "1, 3, 5"
 filter_num = 128
-dropout_keep_prob = 0.5
-l2_reg_lambda = 0.5
+dropout_keep_prob = 0.01
+l2_reg_lambda = 0.6
+CUDA_VISIBLE_DEVICE = "0"
 
-evaluate_every = 5
-checkpoint_num = 5
-checkpoint_every = 5
+evaluate_every = 50
+checkpoint_num = 3
+checkpoint_every = 50
 
 question_length = 50
-answer_length = 32
+answer_length = 256
 
 feature_size = 10
 
@@ -49,15 +55,20 @@ def batch_iter(data, batch_size, epoch_num, shuffle=True):
             end_index = min((batch_num + 1) * batch_size, data_size)
             yield (epoch, shuffled_data[start_index:end_index])
 
-def get_sample(train_file, test_file):
+def get_sample(train_file, test_file, test_file2, test_file3):
     mprint("Load vector ...")
     with open(train_file, "rb") as f:
         data_train = pickle.load(f)
 
     with open(test_file, "rb") as f:
         data_dev = pickle.load(f)
+    with open(test_file2, "rb") as f:
+        data_dev2 = pickle.load(f)
+    with open(test_file3, "rb") as f:
+        data_dev3 = pickle.load(f)
+
     mprint("Complete")
-    return (data_train, data_dev)
+    return (data_train, data_dev, data_dev2, data_dev3)
 
 """
 构建embeddingW词典
@@ -83,20 +94,40 @@ def write_parameter_file():
     out_dir = os.path.abspath(os.path.join(os.path.curdir, "runs", timestamp))
  
     with open(os.path.join(out_dir, "parameter.txt"), "w", encoding="utf-8") as f:
+        f.write("train _ file \t\t{}\n".format(train_file))
+        f.write("testing_file \t\t{}\n".format(test_file))
         f.write("dropout \t\t{}\n".format(dropout_keep_prob))
         f.write("l2      \t\t{}\n".format(l2_reg_lambda))
         f.write("filter_num\t\t{}\n".format(filter_num))
         f.write("filter_size\t\t{}\n".format(filter_sizes))
-
+        f.write("batch_size\t\t{}\n".format(batch_size))
+        f.write("question_length\t\t{}\n".format(question_length))
+        f.write("answer_length\t\t{}\n".format(answer_length))
+        f.write("learning_rate\t\t{}\n".format(learn_rate))
 def load_model():
     mprint("Loading word2vec model ...")
     model = gensim.models.Word2Vec.load('npy/word2vec_wx')
     mprint("Complete.")
     return model
 
-os.environ["CUDA_VISIBLE_DEVICES"] = "0"
-data_train, data_dev = get_sample(train_file, test_file)
+os.environ["CUDA_VISIBLE_DEVICES"] = CUDA_VISIBLE_DEVICE
+data_train, data_dev, data_dev2, data_dev3 = get_sample(train_file, test_file, test_file2, test_file3)
 
+# shuffle data_dev
+data_dev = np.array(data_dev)
+shuffle_indices = np.random.permutation(np.arange(len(data_dev)))
+data_dev = data_dev[shuffle_indices]
+
+data_dev2 = np.array(data_dev2)
+shuffle_indices = np.random.permutation(np.arange(len(data_dev2)))
+data_dev2 = data_dev2[shuffle_indices]
+
+data_dev3 = np.array(data_dev3)
+shuffle_indices = np.random.permutation(np.arange(len(data_dev3)))
+data_dev3 = data_dev3[shuffle_indices]
+
+del shuffle_indices
+ 
 # 索引词典
 if os.path.isfile("word.index"):
     with open("word.index", "rb") as f:
@@ -108,7 +139,6 @@ model = load_model()
 embeddingW = construct_embeddingW(dic)
 
 write_parameter_file()
-
 
 with tf.Graph().as_default():
     session_conf = tf.ConfigProto()
@@ -127,7 +157,7 @@ with tf.Graph().as_default():
 
         # Define Training procedure
         global_step = tf.Variable(0, name="global_step", trainable=False)
-        optimizer = tf.train.AdamOptimizer(1e-4)
+        optimizer = tf.train.AdamOptimizer(learn_rate)
         grads_and_vars = optimizer.compute_gradients(cnn.loss)
         train_op = optimizer.apply_gradients(grads_and_vars, global_step=global_step)
 
@@ -181,13 +211,13 @@ with tf.Graph().as_default():
               cnn.question_feature: question_feature,
               cnn.answer_feature: answer_feature
             }
-            _, step, summaries, loss, accuracy = sess.run(
-               [train_op, global_step, train_summary_op, cnn.loss, cnn.accuracy], feed_dict)
+            _, step, loss, accuracy = sess.run(
+               [train_op, global_step, cnn.loss, cnn.accuracy], feed_dict)
             avg_acc.append(accuracy)
             avg_loss.append(loss)
                                     
             mprint("epoch {}, step {}, loss {:g}, acc {:g}".format(epoch, step, loss, accuracy))
-            train_summary_writer.add_summary(summaries, step)
+            # train_summary_writer.add_summary(summaries, step)
             
             return (np.average(avg_loss), np.average(avg_acc))
      
@@ -206,8 +236,9 @@ with tf.Graph().as_default():
             step, summaries, loss, accuracy = sess.run(
                     [global_step, dev_summary_op, cnn.loss, cnn.accuracy], feed_dict)
 
-            # dev_summary_writer.add_summary(summaries, step)
-            mprint("step {}, loss {:g}, acc {:g}".format(step, loss, accuracy))
+            dev_summary_writer.add_summary(summaries, step)
+            print("")
+            mprint("Evaluation: step {}, loss {:g}, acc {:g}".format(step, loss, accuracy))
             return (loss, accuracy)
 
         max_acc = 0
@@ -216,10 +247,20 @@ with tf.Graph().as_default():
         # Training loop. For each batch...
         for epoch, batch in batches:
             _, labels, questions, answers, q_feature, a_feature = zip(*batch)
-            loss, acc = train_step(epoch=epoch, labels=np.array(labels), questions=np.array(questions), answers=np.array(answers), question_feature=q_feature, answer_feature=a_feature)
+            train_step(epoch=epoch, labels=np.array(labels), questions=np.array(questions), answers=np.array(answers), question_feature=q_feature, answer_feature=a_feature)
             current_step = tf.train.global_step(sess, global_step)
             if current_step % evaluate_every == 0:
-                print("\nEvaluation:")
+                # print("\nEvaluation:")
+                _, labels, questions, answers, q_feature, a_feature = zip(*data_dev)
+                loss, acc = dev_step(labels=np.array(labels), questions=np.array(questions), answers=np.array(answers), question_feature=q_feature, answer_feature=a_feature)
+                
+                _, labels, questions, answers, q_feature, a_feature = zip(*data_dev2)
+                loss, acc = dev_step(labels=np.array(labels), questions=np.array(questions), answers=np.array(answers), question_feature=q_feature, answer_feature=a_feature)
+
+                _, labels, questions, answers, q_feature, a_feature = zip(*data_dev2)
+                loss, acc = dev_step(labels=np.array(labels), questions=np.array(questions), answers=np.array(answers), question_feature=q_feature, answer_feature=a_feature)
+
+                """
                 summary = tf.Summary()
                 dev_batchs = batch_iter(data_dev, batch_size, 1)
                 ans = []
@@ -230,10 +271,10 @@ with tf.Graph().as_default():
                 summary.value.add(tag="loss", simple_value=avg_loss)
                 summary.value.add(tag="Accuracy", simple_value=avg_acc)
                 dev_summary_writer.add_summary(summary, current_step)
-                mprint("Summary:   loss {:g}, acc {:g}\n".format(avg_loss, avg_acc))
+                mprint("Summary:   step {} loss {:g}, acc {:g}\n".format(current_step, avg_loss, avg_acc))
+                """
             if current_step % checkpoint_every == 0 and acc > max_acc:
+                max_acc = acc
                 path = saver.save(sess, checkpoint_prefix, global_step=current_step)
                 mprint("Saved model checkpoint to {}\n".format(path))
-
-
 

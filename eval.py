@@ -3,12 +3,15 @@ import numpy as np
 import tensorflow as tf
 import os
 import pickle
+import sys
 import csv
 from lib_craft import mprint
 
-test_file = "testing_320_1_1.vec"
+os.environ["CUDA_VISIBLE_DEVICES"] = ""
+# test_file = "data/testing_1000_4_1.vec"
+test_file = sys.argv[1]
 batch_size = 128 
-checkpoint_dir = "runs/1523445477/checkpoints"
+checkpoint_dir = "runs/1523606604/checkpoints"
 
 def get_sample(test_file):
     mprint("Load vector ...")

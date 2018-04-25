@@ -240,6 +240,7 @@ with tf.Graph().as_default():
                 dev_summary_writer.add_summary(summary, current_step)
                 mprint("Summary:   loss {:g}, acc {:g}\n".format(avg_loss, avg_acc))
             if current_step % checkpoint_every == 0 and acc > max_acc:
+                max_acc = acc
                 path = saver.save(sess, checkpoint_prefix, global_step=current_step)
                 mprint("Saved model checkpoint to {}\n".format(path))
 
